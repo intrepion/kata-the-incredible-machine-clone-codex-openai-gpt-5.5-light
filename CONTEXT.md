@@ -131,3 +131,15 @@ _Avoid_: Blueprint theme, classroom toybox, factory sim
 **Browser Smoke Path**:
 A real browser interaction path that proves a level can be loaded, edited, run, and completed through the same controls available to a player.
 _Avoid_: Build check, unit test, render smoke
+
+**MVP Slice**:
+A playable delivery increment with its own verification evidence and a clear user-facing capability.
+_Avoid_: Phase, milestone, batch
+
+**Test Seam**:
+A deliberately small browser API used by automated checks to drive player-equivalent actions and read game state.
+_Avoid_: Debug console, cheat API, test harness
+
+**Keyboard Shortcut**:
+A key command that mirrors an existing player action without replacing pointer-first interaction.
+_Avoid_: Hotkey system, keyboard mode
