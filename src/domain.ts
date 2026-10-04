@@ -37,6 +37,7 @@ export interface LevelDefinition {
   toolbox: Partial<Record<PartKind, number>>;
   fixedObjects: FixedObjectDefinition[];
   fixtureParts: PlacedPartDefinition[];
+  placementPadding: number;
   goalPartId: string;
   ballPartId: string;
   timeoutMs: number;

@@ -1,12 +1,14 @@
 import Matter from "matter-js";
 import { AudioSynth } from "../audio";
 import type { GameSnapshot, LevelDefinition, PartKind, PlacedPartDefinition, RunOutcome, Vec2 } from "../domain";
-import { getLevel } from "../levels";
+import { getLevel, levels } from "../levels";
 import { createPhysicsWorld, stepWorld, type PhysicsWorld } from "../physics";
 
 const FRAME_MS = 1_000 / 60;
 const ANGLE_SNAP = Math.PI / 12;
 const STORAGE_KEY = "clockwork-mischief-state-v1";
+const SETTLED_AFTER_MS = 6_500;
+const SETTLED_SPEED = 0.08;
 
 interface PersistedState {
   solutions: Record<string, PlacedPartDefinition[]>;
@@ -132,13 +134,25 @@ export class ClockworkGame {
     const existingIndex = this.placedParts.findIndex((candidate) => candidate.id === part.id);
 
     if (existingIndex >= 0) {
+      if (this.isBlockedPlacement(part, part.id)) {
+        this.status.textContent = "Blocked placement.";
+        this.audio.play("failure");
+        return this.snapshot();
+      }
+
       this.placedParts[existingIndex] = part;
     } else {
       const currentCount = this.placedParts.filter((candidate) => candidate.kind === part.kind).length;
       const allowedCount = this.level.toolbox[part.kind] ?? 0;
 
       if (currentCount >= allowedCount) {
-      this.status.textContent = `No ${part.kind} parts left.`;
+        this.status.textContent = `No ${part.kind} parts left.`;
+        this.audio.play("failure");
+        return this.snapshot();
+      }
+
+      if (this.isBlockedPlacement(part)) {
+        this.status.textContent = "Blocked placement.";
         this.audio.play("failure");
         return this.snapshot();
       }
@@ -321,11 +335,18 @@ export class ClockworkGame {
       ball.position.y > this.level.board.height + 80;
 
     if (outOfBounds || this.runElapsedMs >= this.level.timeoutMs) {
-      this.outcome = "soft-failure";
-      this.status.textContent = "Soft failure. Reset and revise the machine.";
-      this.audio.play("failure");
-      this.stopAnimation();
-      this.updateControls();
+      this.softFail();
+      return;
+    }
+
+    const settled =
+      this.runElapsedMs >= SETTLED_AFTER_MS &&
+      Math.abs(ball.velocity.x) < SETTLED_SPEED &&
+      Math.abs(ball.velocity.y) < SETTLED_SPEED &&
+      Math.abs(ball.angularVelocity) < SETTLED_SPEED;
+
+    if (settled) {
+      this.softFail();
     }
   }
 
@@ -426,6 +447,7 @@ export class ClockworkGame {
     }
 
     selected.angle += delta;
+    this.saveSolution();
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.status.textContent = `${selected.kind} rotated.`;
     this.audio.play("click");
@@ -516,7 +538,7 @@ export class ClockworkGame {
   private renderLevelList(): void {
     this.levelList.innerHTML = "";
 
-    for (const level of [getLevel("level-1"), getLevel("level-2"), getLevel("level-3"), getLevel("level-4"), getLevel("level-5")]) {
+    for (const level of levels) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = this.persisted.completedLevels.includes(level.id) ? `${level.title} ✓` : level.title;
@@ -555,5 +577,100 @@ export class ClockworkGame {
 
   private savePersisted(): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.persisted));
+  }
+
+  private softFail(): void {
+    this.outcome = "soft-failure";
+    this.status.textContent = "Soft failure. Reset and revise the machine.";
+    this.audio.play("failure");
+    this.stopAnimation();
+    this.updateControls();
+  }
+
+  private isBlockedPlacement(part: PlacedPartDefinition, ignorePartId?: string): boolean {
+    const candidate = this.partBounds(part);
+    const padding = this.level.placementPadding;
+
+    for (const fixedObject of this.level.fixedObjects) {
+      if (this.overlaps(candidate, this.fixedBounds(fixedObject), padding)) {
+        return true;
+      }
+    }
+
+    for (const fixturePart of this.level.fixtureParts) {
+      if (this.overlaps(candidate, this.partBounds(fixturePart), padding)) {
+        return true;
+      }
+    }
+
+    for (const placedPart of this.placedParts) {
+      if (placedPart.id !== ignorePartId && this.overlaps(candidate, this.partBounds(placedPart), padding)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private fixedBounds(fixedObject: LevelDefinition["fixedObjects"][number]): Matter.Bounds {
+    return Matter.Bounds.create([
+      {
+        x: fixedObject.position.x - fixedObject.size.width / 2,
+        y: fixedObject.position.y - fixedObject.size.height / 2,
+      },
+      {
+        x: fixedObject.position.x + fixedObject.size.width / 2,
+        y: fixedObject.position.y + fixedObject.size.height / 2,
+      },
+    ]);
+  }
+
+  private partBounds(part: PlacedPartDefinition): Matter.Bounds {
+    const size = this.partSize(part.kind);
+    return Matter.Bounds.create([
+      { x: part.position.x - size.width / 2, y: part.position.y - size.height / 2 },
+      { x: part.position.x + size.width / 2, y: part.position.y + size.height / 2 },
+    ]);
+  }
+
+  private partSize(kind: PartKind): { width: number; height: number } {
+    if (kind === "ball") {
+      return { width: 36, height: 36 };
+    }
+
+    if (kind === "basket") {
+      return { width: 140, height: 42 };
+    }
+
+    if (kind === "ramp") {
+      return { width: 230, height: 20 };
+    }
+
+    if (kind === "bumper") {
+      return { width: 60, height: 60 };
+    }
+
+    if (kind === "fan") {
+      return { width: 58, height: 72 };
+    }
+
+    if (kind === "conveyor") {
+      return { width: 190, height: 22 };
+    }
+
+    if (kind === "button") {
+      return { width: 70, height: 16 };
+    }
+
+    return { width: 80, height: 34 };
+  }
+
+  private overlaps(first: Matter.Bounds, second: Matter.Bounds, padding: number): boolean {
+    return !(
+      first.max.x + padding < second.min.x ||
+      first.min.x - padding > second.max.x ||
+      first.max.y + padding < second.min.y ||
+      first.min.y - padding > second.max.y
+    );
   }
 }

@@ -4977,6 +4977,7 @@
           size: { width: 20, height: 540 }
         }
       ],
+      placementPadding: 6,
       fixtureParts: [
         {
           id: "ball-1",
@@ -5013,6 +5014,7 @@
           size: { width: 960, height: 40 }
         }
       ],
+      placementPadding: 6,
       fixtureParts: [
         {
           id: "ball-2",
@@ -5049,6 +5051,7 @@
           size: { width: 960, height: 40 }
         }
       ],
+      placementPadding: 6,
       fixtureParts: [
         {
           id: "ball-3",
@@ -5085,6 +5088,7 @@
           size: { width: 960, height: 40 }
         }
       ],
+      placementPadding: 6,
       fixtureParts: [
         {
           id: "ball-4",
@@ -5122,6 +5126,7 @@
           size: { width: 960, height: 40 }
         }
       ],
+      placementPadding: 6,
       fixtureParts: [
         {
           id: "ball-5",
@@ -5255,6 +5260,8 @@
   var FRAME_MS = 1e3 / 60;
   var ANGLE_SNAP = Math.PI / 12;
   var STORAGE_KEY = "clockwork-mischief-state-v1";
+  var SETTLED_AFTER_MS = 6500;
+  var SETTLED_SPEED = 0.08;
   var ClockworkGame = class {
     root;
     canvas;
@@ -5359,12 +5366,22 @@
       }
       const existingIndex = this.placedParts.findIndex((candidate) => candidate.id === part.id);
       if (existingIndex >= 0) {
+        if (this.isBlockedPlacement(part, part.id)) {
+          this.status.textContent = "Blocked placement.";
+          this.audio.play("failure");
+          return this.snapshot();
+        }
         this.placedParts[existingIndex] = part;
       } else {
         const currentCount = this.placedParts.filter((candidate) => candidate.kind === part.kind).length;
         const allowedCount = this.level.toolbox[part.kind] ?? 0;
         if (currentCount >= allowedCount) {
           this.status.textContent = `No ${part.kind} parts left.`;
+          this.audio.play("failure");
+          return this.snapshot();
+        }
+        if (this.isBlockedPlacement(part)) {
+          this.status.textContent = "Blocked placement.";
           this.audio.play("failure");
           return this.snapshot();
         }
@@ -5512,11 +5529,12 @@
       }
       const outOfBounds = ball.position.x < -60 || ball.position.x > this.level.board.width + 60 || ball.position.y > this.level.board.height + 80;
       if (outOfBounds || this.runElapsedMs >= this.level.timeoutMs) {
-        this.outcome = "soft-failure";
-        this.status.textContent = "Soft failure. Reset and revise the machine.";
-        this.audio.play("failure");
-        this.stopAnimation();
-        this.updateControls();
+        this.softFail();
+        return;
+      }
+      const settled = this.runElapsedMs >= SETTLED_AFTER_MS && Math.abs(ball.velocity.x) < SETTLED_SPEED && Math.abs(ball.velocity.y) < SETTLED_SPEED && Math.abs(ball.angularVelocity) < SETTLED_SPEED;
+      if (settled) {
+        this.softFail();
       }
     }
     applyPoweredParts() {
@@ -5589,6 +5607,7 @@
         return;
       }
       selected.angle += delta;
+      this.saveSolution();
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.status.textContent = `${selected.kind} rotated.`;
       this.audio.play("click");
@@ -5666,7 +5685,7 @@
     }
     renderLevelList() {
       this.levelList.innerHTML = "";
-      for (const level of [getLevel("level-1"), getLevel("level-2"), getLevel("level-3"), getLevel("level-4"), getLevel("level-5")]) {
+      for (const level of levels) {
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = this.persisted.completedLevels.includes(level.id) ? `${level.title} \u2713` : level.title;
@@ -5699,6 +5718,79 @@
     }
     savePersisted() {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.persisted));
+    }
+    softFail() {
+      this.outcome = "soft-failure";
+      this.status.textContent = "Soft failure. Reset and revise the machine.";
+      this.audio.play("failure");
+      this.stopAnimation();
+      this.updateControls();
+    }
+    isBlockedPlacement(part, ignorePartId) {
+      const candidate = this.partBounds(part);
+      const padding = this.level.placementPadding;
+      for (const fixedObject of this.level.fixedObjects) {
+        if (this.overlaps(candidate, this.fixedBounds(fixedObject), padding)) {
+          return true;
+        }
+      }
+      for (const fixturePart of this.level.fixtureParts) {
+        if (this.overlaps(candidate, this.partBounds(fixturePart), padding)) {
+          return true;
+        }
+      }
+      for (const placedPart of this.placedParts) {
+        if (placedPart.id !== ignorePartId && this.overlaps(candidate, this.partBounds(placedPart), padding)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    fixedBounds(fixedObject) {
+      return import_matter_js2.default.Bounds.create([
+        {
+          x: fixedObject.position.x - fixedObject.size.width / 2,
+          y: fixedObject.position.y - fixedObject.size.height / 2
+        },
+        {
+          x: fixedObject.position.x + fixedObject.size.width / 2,
+          y: fixedObject.position.y + fixedObject.size.height / 2
+        }
+      ]);
+    }
+    partBounds(part) {
+      const size = this.partSize(part.kind);
+      return import_matter_js2.default.Bounds.create([
+        { x: part.position.x - size.width / 2, y: part.position.y - size.height / 2 },
+        { x: part.position.x + size.width / 2, y: part.position.y + size.height / 2 }
+      ]);
+    }
+    partSize(kind) {
+      if (kind === "ball") {
+        return { width: 36, height: 36 };
+      }
+      if (kind === "basket") {
+        return { width: 140, height: 42 };
+      }
+      if (kind === "ramp") {
+        return { width: 230, height: 20 };
+      }
+      if (kind === "bumper") {
+        return { width: 60, height: 60 };
+      }
+      if (kind === "fan") {
+        return { width: 58, height: 72 };
+      }
+      if (kind === "conveyor") {
+        return { width: 190, height: 22 };
+      }
+      if (kind === "button") {
+        return { width: 70, height: 16 };
+      }
+      return { width: 80, height: 34 };
+    }
+    overlaps(first, second, padding) {
+      return !(first.max.x + padding < second.min.x || first.min.x - padding > second.max.x || first.max.y + padding < second.min.y || first.min.y - padding > second.max.y);
     }
   };
 

@@ -31,6 +31,7 @@ export const levels: LevelDefinition[] = [
         size: { width: 20, height: 540 },
       },
     ],
+    placementPadding: 6,
     fixtureParts: [
       {
         id: "ball-1",
@@ -67,6 +68,7 @@ export const levels: LevelDefinition[] = [
         size: { width: 960, height: 40 },
       },
     ],
+    placementPadding: 6,
     fixtureParts: [
       {
         id: "ball-2",
@@ -103,6 +105,7 @@ export const levels: LevelDefinition[] = [
         size: { width: 960, height: 40 },
       },
     ],
+    placementPadding: 6,
     fixtureParts: [
       {
         id: "ball-3",
@@ -139,6 +142,7 @@ export const levels: LevelDefinition[] = [
         size: { width: 960, height: 40 },
       },
     ],
+    placementPadding: 6,
     fixtureParts: [
       {
         id: "ball-4",
@@ -176,6 +180,7 @@ export const levels: LevelDefinition[] = [
         size: { width: 960, height: 40 },
       },
     ],
+    placementPadding: 6,
     fixtureParts: [
       {
         id: "ball-5",
