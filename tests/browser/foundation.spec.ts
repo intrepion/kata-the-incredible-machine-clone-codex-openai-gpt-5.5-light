@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("served app boots the Level 1 fixture and exposes the test seam", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   await expect(page.getByRole("heading", { name: "Basket Case" })).toBeVisible();
   await expect(page.getByTestId("machine-board")).toBeVisible();
@@ -13,7 +13,7 @@ test("served app boots the Level 1 fixture and exposes the test seam", async ({ 
 });
 
 test("player can complete Level 1 by placing a ramp and running the machine", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   await page.getByRole("button", { name: "ramp x1" }).click();
   const board = page.getByTestId("machine-board");
@@ -29,7 +29,7 @@ test("player can complete Level 1 by placing a ramp and running the machine", as
 });
 
 test("solutions and completions persist per level", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   await page.evaluate(() => {
     window.clockworkMischiefTest.placePart({
@@ -50,7 +50,7 @@ test("solutions and completions persist per level", async ({ page }) => {
 });
 
 test("rotation edits persist in the saved solution", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   await page.evaluate(() => {
     window.clockworkMischiefTest.placePart({ id: "ramp-persist", kind: "ramp", position: { x: 300, y: 270 }, angle: 0 });
@@ -65,7 +65,7 @@ test("rotation edits persist in the saved solution", async ({ page }) => {
 });
 
 test("build mode rejects blocked placements", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   const snapshot = await page.evaluate(() =>
     window.clockworkMischiefTest.placePart({
@@ -81,7 +81,7 @@ test("build mode rejects blocked placements", async ({ page }) => {
 });
 
 test("a settled machine soft-fails before the level timeout", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   await page.evaluate(() => window.clockworkMischiefTest.start());
 
@@ -89,7 +89,7 @@ test("a settled machine soft-fails before the level timeout", async ({ page }) =
 });
 
 test("fan force can complete the fan level", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   await page.evaluate(() => {
     window.clockworkMischiefTest.loadLevel("level-4");
@@ -102,7 +102,7 @@ test("fan force can complete the fan level", async ({ page }) => {
 });
 
 test("buttoned conveyor can complete the final launch level", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   await page.evaluate(() => {
     window.clockworkMischiefTest.loadLevel("level-5");
@@ -116,7 +116,7 @@ test("buttoned conveyor can complete the final launch level", async ({ page }) =
 });
 
 test("keyboard shortcuts reveal hints and control selected parts", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dev.html");
 
   await expect(page.getByText("A simple ramp can turn falling into rolling.")).toBeHidden();
   await page.keyboard.press("h");
