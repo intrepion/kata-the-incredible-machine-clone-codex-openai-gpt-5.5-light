@@ -1,0 +1,39 @@
+{
+  "name": "kata-the-incredible-machine-clone-codex-openai-gpt-5.5-light",
+  "version": "1.0.0",
+  "description": "Clockwork Mischief, a side-view contraption puzzle inspired by The Incredible Machine.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc && vite build",
+    "build:file": "node scripts/build-file.mjs",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "check": "npm run test && npm run build && npm run build:file && npm run test:browser"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/intrepion/kata-the-incredible-machine-clone-codex-openai-gpt-5.5-light.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/intrepion/kata-the-incredible-machine-clone-codex-openai-gpt-5.5-light/issues"
+  },
+  "homepage": "https://github.com/intrepion/kata-the-incredible-machine-clone-codex-openai-gpt-5.5-light#readme",
+  "dependencies": {
+    "matter-js": "^0.20.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/matter-js": "^0.20.2",
+    "@types/node": "^26.6.4",
+    "@vitejs/plugin-legacy": "^8.2.3",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}
