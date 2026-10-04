@@ -24,6 +24,18 @@ _Avoid_: Item, tool, prop
 The available set of parts for a level.
 _Avoid_: Inventory, palette, tray
 
+**Part Count**:
+The level-specific quantity limit for each part in the toolbox.
+_Avoid_: Stock, ammo, charges
+
+**Solution**:
+The saved build-mode arrangement for a level, whether or not it has completed the objective.
+_Avoid_: Save, layout, answer
+
+**Completion**:
+The recorded fact that a level's objective has been satisfied.
+_Avoid_: Win flag, clear, solved state
+
 **Board**:
 The bounded side-view physical space where the contraption is assembled and run.
 _Avoid_: Map, world, canvas
@@ -44,9 +56,17 @@ _Avoid_: Setup, build, layout
 A sequence of physical interactions where one event causes the next until the objective either succeeds or stalls.
 _Avoid_: Combo, script, automation
 
+**Soft Failure**:
+A run-mode outcome where the machine has clearly missed the objective, stalled, or gone out of bounds without erasing the player's build-mode solution.
+_Avoid_: Game over, loss, death
+
 **Reset**:
 Returning the board from run mode to the last build-mode arrangement.
 _Avoid_: Restart, undo simulation
+
+**Angle Snap**:
+The rotation increment used when orienting adjustable parts.
+_Avoid_: Grid rotation, precision angle
 
 **Level**:
 A constrained contraption puzzle with its own board, toolbox, fixed objects, and objective.
@@ -56,3 +76,6 @@ _Avoid_: Stage, scene, sandbox
 A sequence of levels that introduces parts and physical ideas through increasingly demanding objectives.
 _Avoid_: Story mode, progression track
 
+**Mechanical Workshop**:
+The playful visual identity for the game: readable physical parts, warm tabletop materials, and practical machine surfaces.
+_Avoid_: Blueprint theme, classroom toybox, factory sim
