@@ -44,6 +44,14 @@ _Avoid_: Win flag, clear, solved state
 The bounded side-view physical space where the contraption is assembled and run.
 _Avoid_: Map, world, canvas
 
+**Placement Rule**:
+A validity rule that determines whether a player may place or rotate a part at a board location.
+_Avoid_: Collision guard, editor constraint
+
+**Blocked Placement**:
+A placement attempt rejected because the part would overlap fixed objects, goal areas, or existing placed parts.
+_Avoid_: Invalid drop, red zone, forbidden placement
+
 **Objective**:
 The required outcome that makes a contraption puzzle complete.
 _Avoid_: Mission, quest, task
@@ -88,6 +96,14 @@ _Avoid_: Grid rotation, precision angle
 A constrained contraption puzzle with its own board, toolbox, fixed objects, and objective.
 _Avoid_: Stage, scene, sandbox
 
+**Level Definition**:
+The data record that defines a level's board, fixed objects, toolbox, objective, hint, and validation rules.
+_Avoid_: Level script, map file, scene config
+
+**Hint**:
+A short optional clue that nudges the player toward the physical idea of a level without explaining the whole solution.
+_Avoid_: Tutorial text, instruction, answer
+
 **Campaign**:
 A sequence of levels that introduces parts and physical ideas through increasingly demanding objectives.
 _Avoid_: Story mode, progression track
@@ -111,3 +127,7 @@ _Avoid_: Wired part, switched gadget
 **Mechanical Workshop**:
 The playful visual identity for the game: readable physical parts, warm tabletop materials, and practical machine surfaces.
 _Avoid_: Blueprint theme, classroom toybox, factory sim
+
+**Browser Smoke Path**:
+A real browser interaction path that proves a level can be loaded, edited, run, and completed through the same controls available to a player.
+_Avoid_: Build check, unit test, render smoke
