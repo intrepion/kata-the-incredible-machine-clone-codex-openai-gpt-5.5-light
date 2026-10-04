@@ -31,3 +31,24 @@ test("player can complete Level 1 by placing a ramp and running the machine", as
   const resetSnapshot = await page.evaluate(() => window.clockworkMischiefTest.reset());
   expect(resetSnapshot.outcome).toBe("idle");
 });
+
+test("solutions and completions persist per level", async ({ page }) => {
+  await page.goto("/");
+
+  await page.evaluate(() => {
+    window.clockworkMischiefTest.placePart({
+      id: "ramp-solution",
+      kind: "ramp",
+      position: { x: 300, y: 270 },
+      angle: 0.35,
+    });
+    window.clockworkMischiefTest.start();
+  });
+  await expect.poll(async () => page.evaluate(() => window.clockworkMischiefTest.snapshot().outcome)).toBe("success");
+
+  await page.reload();
+  const snapshot = await page.evaluate(() => window.clockworkMischiefTest.snapshot());
+
+  expect(snapshot.completedLevels).toContain("level-1");
+  expect(snapshot.placedParts.some((part) => part.id === "ramp-solution")).toBe(true);
+});

@@ -4959,6 +4959,151 @@
       ],
       ballPartId: "ball-1",
       goalPartId: "basket-1"
+    },
+    {
+      id: "level-2",
+      title: "Block and Tackle",
+      objective: "Redirect the ball around the block and into the basket.",
+      hint: "Use the block as a stop, not a bridge.",
+      board: { width: 960, height: 540 },
+      timeoutMs: 8e3,
+      toolbox: {
+        ramp: 1,
+        block: 1
+      },
+      fixedObjects: [
+        {
+          id: "floor",
+          kind: "floor",
+          position: { x: 480, y: 520 },
+          size: { width: 960, height: 40 }
+        }
+      ],
+      fixtureParts: [
+        {
+          id: "ball-2",
+          kind: "ball",
+          position: { x: 250, y: 120 },
+          angle: 0
+        },
+        {
+          id: "basket-2",
+          kind: "basket",
+          position: { x: 700, y: 488 },
+          angle: 0
+        }
+      ],
+      ballPartId: "ball-2",
+      goalPartId: "basket-2"
+    },
+    {
+      id: "level-3",
+      title: "Bumper Lesson",
+      objective: "Use a bumper to keep the ball moving toward the basket.",
+      hint: "A bumper changes direction without needing a second ramp.",
+      board: { width: 960, height: 540 },
+      timeoutMs: 8e3,
+      toolbox: {
+        ramp: 1,
+        bumper: 1
+      },
+      fixedObjects: [
+        {
+          id: "floor",
+          kind: "floor",
+          position: { x: 480, y: 520 },
+          size: { width: 960, height: 40 }
+        }
+      ],
+      fixtureParts: [
+        {
+          id: "ball-3",
+          kind: "ball",
+          position: { x: 210, y: 100 },
+          angle: 0
+        },
+        {
+          id: "basket-3",
+          kind: "basket",
+          position: { x: 760, y: 488 },
+          angle: 0
+        }
+      ],
+      ballPartId: "ball-3",
+      goalPartId: "basket-3"
+    },
+    {
+      id: "level-4",
+      title: "Fan Fare",
+      objective: "Use fan force to push the ball into the basket.",
+      hint: "A fan is strongest when the ball passes in front of it.",
+      board: { width: 960, height: 540 },
+      timeoutMs: 8e3,
+      toolbox: {
+        ramp: 1,
+        fan: 1
+      },
+      fixedObjects: [
+        {
+          id: "floor",
+          kind: "floor",
+          position: { x: 480, y: 520 },
+          size: { width: 960, height: 40 }
+        }
+      ],
+      fixtureParts: [
+        {
+          id: "ball-4",
+          kind: "ball",
+          position: { x: 300, y: 100 },
+          angle: 0
+        },
+        {
+          id: "basket-4",
+          kind: "basket",
+          position: { x: 820, y: 488 },
+          angle: 0
+        }
+      ],
+      ballPartId: "ball-4",
+      goalPartId: "basket-4"
+    },
+    {
+      id: "level-5",
+      title: "Buttoned Conveyor",
+      objective: "Trigger the conveyor and carry the ball into the basket.",
+      hint: "The button wakes the conveyor when the ball reaches it.",
+      board: { width: 960, height: 540 },
+      timeoutMs: 8e3,
+      toolbox: {
+        ramp: 1,
+        conveyor: 1,
+        button: 1
+      },
+      fixedObjects: [
+        {
+          id: "floor",
+          kind: "floor",
+          position: { x: 480, y: 520 },
+          size: { width: 960, height: 40 }
+        }
+      ],
+      fixtureParts: [
+        {
+          id: "ball-5",
+          kind: "ball",
+          position: { x: 180, y: 100 },
+          angle: 0
+        },
+        {
+          id: "basket-5",
+          kind: "basket",
+          position: { x: 820, y: 488 },
+          angle: 0
+        }
+      ],
+      ballPartId: "ball-5",
+      goalPartId: "basket-5"
     }
   ];
   function getLevel(levelId) {
@@ -5041,6 +5186,7 @@
   // src/ui/game.ts
   var FRAME_MS = 1e3 / 60;
   var ANGLE_SNAP = Math.PI / 12;
+  var STORAGE_KEY = "clockwork-mischief-state-v1";
   var ClockworkGame = class {
     root;
     canvas;
@@ -5048,8 +5194,10 @@
     status;
     startButton;
     resetButton;
+    levelList;
     level = getLevel("level-1");
     placedParts = [];
+    persisted = { solutions: {}, completedLevels: [] };
     world = null;
     outcome = "idle";
     animationFrame = 0;
@@ -5067,6 +5215,7 @@
       this.status = document.createElement("p");
       this.startButton = document.createElement("button");
       this.resetButton = document.createElement("button");
+      this.levelList = document.createElement("div");
     }
     mount() {
       this.root.className = "app-shell";
@@ -5089,6 +5238,7 @@
       const objective = document.createElement("p");
       objective.className = "objective";
       objective.textContent = this.level.objective;
+      objective.dataset.role = "objective";
       const toolbox = document.createElement("div");
       toolbox.className = "toolbox";
       toolbox.innerHTML = `
@@ -5103,7 +5253,8 @@
       this.canvas.height = this.level.board.height;
       this.canvas.className = "machine-board";
       this.canvas.dataset.testid = "machine-board";
-      this.root.append(header, objective, toolbox, this.canvas, this.status);
+      this.levelList.className = "level-list";
+      this.root.append(header, this.levelList, objective, toolbox, this.canvas, this.status);
       this.startButton.addEventListener("click", () => this.start());
       this.resetButton.addEventListener("click", () => this.reset());
       toolbox.querySelector("[data-tool='ramp']")?.addEventListener("click", () => {
@@ -5115,13 +5266,15 @@
       toolbox.querySelector("[data-action='delete']")?.addEventListener("click", () => this.deleteSelected());
       this.canvas.addEventListener("pointerdown", (event) => this.handleBoardPointer(event));
       window.addEventListener("keydown", (event) => this.handleKey(event));
+      this.persisted = this.loadPersisted();
+      this.renderLevelList();
       this.loadLevel(this.level.id);
       this.installTestSeam();
     }
     loadLevel(levelId) {
       this.stopAnimation();
       this.level = getLevel(levelId);
-      this.placedParts = [];
+      this.placedParts = [...this.persisted.solutions[levelId] ?? []];
       this.outcome = "idle";
       this.runElapsedMs = 0;
       this.selectedPartId = null;
@@ -5131,6 +5284,7 @@
       this.canvas.height = this.level.board.height;
       this.draw();
       this.status.textContent = "Build mode ready.";
+      this.renderLevelList();
       return this.snapshot();
     }
     placePart(part) {
@@ -5150,6 +5304,7 @@
         this.placedParts.push(part);
       }
       this.selectedPartId = part.id;
+      this.saveSolution();
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.status.textContent = `${part.kind} placed.`;
       this.draw();
@@ -5184,7 +5339,8 @@
         outcome: this.outcome,
         board: this.level.board,
         placedParts: [...this.level.fixtureParts, ...this.placedParts],
-        bodyPositions: this.bodyPositions()
+        bodyPositions: this.bodyPositions(),
+        completedLevels: [...this.persisted.completedLevels]
       };
     }
     tick() {
@@ -5276,6 +5432,7 @@
       if (ballInGoal) {
         this.outcome = "success";
         this.status.textContent = "Success!";
+        this.markComplete();
         this.stopAnimation();
         this.updateControls();
         return;
@@ -5335,6 +5492,7 @@
         return;
       }
       this.placedParts = this.placedParts.filter((part) => part.id !== this.selectedPartId);
+      this.saveSolution();
       this.selectedPartId = null;
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.status.textContent = "Part removed.";
@@ -5363,6 +5521,42 @@
       const running = this.outcome === "running";
       this.startButton.disabled = running;
       this.resetButton.disabled = false;
+    }
+    renderLevelList() {
+      this.levelList.innerHTML = "";
+      for (const level of [getLevel("level-1"), getLevel("level-2"), getLevel("level-3"), getLevel("level-4"), getLevel("level-5")]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = this.persisted.completedLevels.includes(level.id) ? `${level.title} \u2713` : level.title;
+        button.disabled = this.level.id === level.id;
+        button.addEventListener("click", () => this.loadLevel(level.id));
+        this.levelList.append(button);
+      }
+    }
+    saveSolution() {
+      this.persisted.solutions[this.level.id] = [...this.placedParts];
+      this.savePersisted();
+    }
+    markComplete() {
+      if (!this.persisted.completedLevels.includes(this.level.id)) {
+        this.persisted.completedLevels.push(this.level.id);
+        this.savePersisted();
+        this.renderLevelList();
+      }
+    }
+    loadPersisted() {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        return { solutions: {}, completedLevels: [] };
+      }
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return { solutions: {}, completedLevels: [] };
+      }
+    }
+    savePersisted() {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.persisted));
     }
   };
 

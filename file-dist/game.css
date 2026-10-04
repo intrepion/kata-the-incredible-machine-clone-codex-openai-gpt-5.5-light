@@ -48,7 +48,8 @@ button:disabled {
   gap: 16px;
 }
 .actions,
-.toolbox {
+.toolbox,
+.level-list {
   align-items: center;
   display: flex;
   flex-wrap: wrap;

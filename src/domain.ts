@@ -50,4 +50,5 @@ export interface GameSnapshot {
   board: BoardSize;
   placedParts: PlacedPartDefinition[];
   bodyPositions: Record<string, Vec2>;
+  completedLevels: string[];
 }

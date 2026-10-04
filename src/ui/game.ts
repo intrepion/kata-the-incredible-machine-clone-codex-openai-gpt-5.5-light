@@ -5,6 +5,12 @@ import { createPhysicsWorld, stepWorld, type PhysicsWorld } from "../physics";
 
 const FRAME_MS = 1_000 / 60;
 const ANGLE_SNAP = Math.PI / 12;
+const STORAGE_KEY = "clockwork-mischief-state-v1";
+
+interface PersistedState {
+  solutions: Record<string, PlacedPartDefinition[]>;
+  completedLevels: string[];
+}
 
 export class ClockworkGame {
   private readonly root: HTMLElement;
@@ -13,8 +19,10 @@ export class ClockworkGame {
   private readonly status: HTMLParagraphElement;
   private readonly startButton: HTMLButtonElement;
   private readonly resetButton: HTMLButtonElement;
+  private readonly levelList: HTMLDivElement;
   private level: LevelDefinition = getLevel("level-1");
   private placedParts: PlacedPartDefinition[] = [];
+  private persisted: PersistedState = { solutions: {}, completedLevels: [] };
   private world: PhysicsWorld | null = null;
   private outcome: RunOutcome = "idle";
   private animationFrame = 0;
@@ -35,6 +43,7 @@ export class ClockworkGame {
     this.status = document.createElement("p");
     this.startButton = document.createElement("button");
     this.resetButton = document.createElement("button");
+    this.levelList = document.createElement("div");
   }
 
   mount(): void {
@@ -60,6 +69,7 @@ export class ClockworkGame {
     const objective = document.createElement("p");
     objective.className = "objective";
     objective.textContent = this.level.objective;
+    objective.dataset.role = "objective";
 
     const toolbox = document.createElement("div");
     toolbox.className = "toolbox";
@@ -78,7 +88,8 @@ export class ClockworkGame {
     this.canvas.className = "machine-board";
     this.canvas.dataset.testid = "machine-board";
 
-    this.root.append(header, objective, toolbox, this.canvas, this.status);
+    this.levelList.className = "level-list";
+    this.root.append(header, this.levelList, objective, toolbox, this.canvas, this.status);
     this.startButton.addEventListener("click", () => this.start());
     this.resetButton.addEventListener("click", () => this.reset());
     toolbox.querySelector<HTMLButtonElement>("[data-tool='ramp']")?.addEventListener("click", () => {
@@ -91,6 +102,8 @@ export class ClockworkGame {
     this.canvas.addEventListener("pointerdown", (event) => this.handleBoardPointer(event));
     window.addEventListener("keydown", (event) => this.handleKey(event));
 
+    this.persisted = this.loadPersisted();
+    this.renderLevelList();
     this.loadLevel(this.level.id);
     this.installTestSeam();
   }
@@ -98,7 +111,7 @@ export class ClockworkGame {
   loadLevel(levelId: string): GameSnapshot {
     this.stopAnimation();
     this.level = getLevel(levelId);
-    this.placedParts = [];
+    this.placedParts = [...(this.persisted.solutions[levelId] ?? [])];
     this.outcome = "idle";
     this.runElapsedMs = 0;
     this.selectedPartId = null;
@@ -108,6 +121,7 @@ export class ClockworkGame {
     this.canvas.height = this.level.board.height;
     this.draw();
     this.status.textContent = "Build mode ready.";
+    this.renderLevelList();
     return this.snapshot();
   }
 
@@ -133,6 +147,7 @@ export class ClockworkGame {
     }
 
     this.selectedPartId = part.id;
+    this.saveSolution();
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.status.textContent = `${part.kind} placed.`;
     this.draw();
@@ -171,6 +186,7 @@ export class ClockworkGame {
       board: this.level.board,
       placedParts: [...this.level.fixtureParts, ...this.placedParts],
       bodyPositions: this.bodyPositions(),
+      completedLevels: [...this.persisted.completedLevels],
     };
   }
 
@@ -287,6 +303,7 @@ export class ClockworkGame {
     if (ballInGoal) {
       this.outcome = "success";
       this.status.textContent = "Success!";
+      this.markComplete();
       this.stopAnimation();
       this.updateControls();
       return;
@@ -363,6 +380,7 @@ export class ClockworkGame {
     }
 
     this.placedParts = this.placedParts.filter((part) => part.id !== this.selectedPartId);
+    this.saveSolution();
     this.selectedPartId = null;
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.status.textContent = "Part removed.";
@@ -393,5 +411,49 @@ export class ClockworkGame {
     const running = this.outcome === "running";
     this.startButton.disabled = running;
     this.resetButton.disabled = false;
+  }
+
+  private renderLevelList(): void {
+    this.levelList.innerHTML = "";
+
+    for (const level of [getLevel("level-1"), getLevel("level-2"), getLevel("level-3"), getLevel("level-4"), getLevel("level-5")]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = this.persisted.completedLevels.includes(level.id) ? `${level.title} ✓` : level.title;
+      button.disabled = this.level.id === level.id;
+      button.addEventListener("click", () => this.loadLevel(level.id));
+      this.levelList.append(button);
+    }
+  }
+
+  private saveSolution(): void {
+    this.persisted.solutions[this.level.id] = [...this.placedParts];
+    this.savePersisted();
+  }
+
+  private markComplete(): void {
+    if (!this.persisted.completedLevels.includes(this.level.id)) {
+      this.persisted.completedLevels.push(this.level.id);
+      this.savePersisted();
+      this.renderLevelList();
+    }
+  }
+
+  private loadPersisted(): PersistedState {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+
+    if (!raw) {
+      return { solutions: {}, completedLevels: [] };
+    }
+
+    try {
+      return JSON.parse(raw) as PersistedState;
+    } catch {
+      return { solutions: {}, completedLevels: [] };
+    }
+  }
+
+  private savePersisted(): void {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.persisted));
   }
 }
