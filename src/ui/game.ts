@@ -1,20 +1,26 @@
 import Matter from "matter-js";
-import type { GameSnapshot, LevelDefinition, PlacedPartDefinition, RunOutcome } from "../domain";
+import type { GameSnapshot, LevelDefinition, PartKind, PlacedPartDefinition, RunOutcome, Vec2 } from "../domain";
 import { getLevel } from "../levels";
 import { createPhysicsWorld, stepWorld, type PhysicsWorld } from "../physics";
 
 const FRAME_MS = 1_000 / 60;
+const ANGLE_SNAP = Math.PI / 12;
 
 export class ClockworkGame {
   private readonly root: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly context: CanvasRenderingContext2D;
   private readonly status: HTMLParagraphElement;
+  private readonly startButton: HTMLButtonElement;
+  private readonly resetButton: HTMLButtonElement;
   private level: LevelDefinition = getLevel("level-1");
   private placedParts: PlacedPartDefinition[] = [];
   private world: PhysicsWorld | null = null;
   private outcome: RunOutcome = "idle";
   private animationFrame = 0;
+  private runElapsedMs = 0;
+  private selectedKind: PartKind | null = "ramp";
+  private selectedPartId: string | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -27,6 +33,8 @@ export class ClockworkGame {
 
     this.context = context;
     this.status = document.createElement("p");
+    this.startButton = document.createElement("button");
+    this.resetButton = document.createElement("button");
   }
 
   mount(): void {
@@ -35,17 +43,32 @@ export class ClockworkGame {
 
     const header = document.createElement("header");
     header.className = "topbar";
-    header.innerHTML = `
-      <div>
-        <p class="eyebrow">Clockwork Mischief</p>
-        <h1>${this.level.title}</h1>
-      </div>
-      <button type="button" data-action="start">Start</button>
+    const titleBlock = document.createElement("div");
+    titleBlock.innerHTML = `
+      <p class="eyebrow">Clockwork Mischief</p>
+      <h1>${this.level.title}</h1>
     `;
+    this.startButton.type = "button";
+    this.startButton.textContent = "Start";
+    this.resetButton.type = "button";
+    this.resetButton.textContent = "Reset";
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    actions.append(this.startButton, this.resetButton);
+    header.append(titleBlock, actions);
 
     const objective = document.createElement("p");
     objective.className = "objective";
     objective.textContent = this.level.objective;
+
+    const toolbox = document.createElement("div");
+    toolbox.className = "toolbox";
+    toolbox.innerHTML = `
+      <button type="button" data-tool="ramp">Ramp x1</button>
+      <button type="button" data-action="rotate-left">[ Rotate</button>
+      <button type="button" data-action="rotate-right">] Rotate</button>
+      <button type="button" data-action="delete">Delete</button>
+    `;
 
     this.status.className = "status";
     this.status.textContent = "Build mode ready.";
@@ -55,10 +78,18 @@ export class ClockworkGame {
     this.canvas.className = "machine-board";
     this.canvas.dataset.testid = "machine-board";
 
-    this.root.append(header, objective, this.canvas, this.status);
-    header.querySelector<HTMLButtonElement>("[data-action='start']")?.addEventListener("click", () => {
-      this.start();
+    this.root.append(header, objective, toolbox, this.canvas, this.status);
+    this.startButton.addEventListener("click", () => this.start());
+    this.resetButton.addEventListener("click", () => this.reset());
+    toolbox.querySelector<HTMLButtonElement>("[data-tool='ramp']")?.addEventListener("click", () => {
+      this.selectedKind = "ramp";
+      this.status.textContent = "Ramp selected.";
     });
+    toolbox.querySelector<HTMLButtonElement>("[data-action='rotate-left']")?.addEventListener("click", () => this.rotateSelected(-ANGLE_SNAP));
+    toolbox.querySelector<HTMLButtonElement>("[data-action='rotate-right']")?.addEventListener("click", () => this.rotateSelected(ANGLE_SNAP));
+    toolbox.querySelector<HTMLButtonElement>("[data-action='delete']")?.addEventListener("click", () => this.deleteSelected());
+    this.canvas.addEventListener("pointerdown", (event) => this.handleBoardPointer(event));
+    window.addEventListener("keydown", (event) => this.handleKey(event));
 
     this.loadLevel(this.level.id);
     this.installTestSeam();
@@ -69,7 +100,10 @@ export class ClockworkGame {
     this.level = getLevel(levelId);
     this.placedParts = [];
     this.outcome = "idle";
+    this.runElapsedMs = 0;
+    this.selectedPartId = null;
     this.world = createPhysicsWorld(this.level, this.placedParts);
+    this.updateControls();
     this.canvas.width = this.level.board.width;
     this.canvas.height = this.level.board.height;
     this.draw();
@@ -77,17 +111,55 @@ export class ClockworkGame {
     return this.snapshot();
   }
 
+  placePart(part: PlacedPartDefinition): GameSnapshot {
+    if (this.outcome === "running") {
+      return this.snapshot();
+    }
+
+    const existingIndex = this.placedParts.findIndex((candidate) => candidate.id === part.id);
+
+    if (existingIndex >= 0) {
+      this.placedParts[existingIndex] = part;
+    } else {
+      const currentCount = this.placedParts.filter((candidate) => candidate.kind === part.kind).length;
+      const allowedCount = this.level.toolbox[part.kind] ?? 0;
+
+      if (currentCount >= allowedCount) {
+        this.status.textContent = `No ${part.kind} parts left.`;
+        return this.snapshot();
+      }
+
+      this.placedParts.push(part);
+    }
+
+    this.selectedPartId = part.id;
+    this.world = createPhysicsWorld(this.level, this.placedParts);
+    this.status.textContent = `${part.kind} placed.`;
+    this.draw();
+    this.updateControls();
+    return this.snapshot();
+  }
+
   start(): GameSnapshot {
     this.stopAnimation();
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.outcome = "running";
+    this.runElapsedMs = 0;
     this.status.textContent = "Run mode.";
+    this.updateControls();
     this.tick();
     return this.snapshot();
   }
 
   reset(): GameSnapshot {
-    return this.loadLevel(this.level.id);
+    this.stopAnimation();
+    this.outcome = "idle";
+    this.runElapsedMs = 0;
+    this.world = createPhysicsWorld(this.level, this.placedParts);
+    this.status.textContent = "Build mode ready.";
+    this.updateControls();
+    this.draw();
+    return this.snapshot();
   }
 
   snapshot(): GameSnapshot {
@@ -98,6 +170,7 @@ export class ClockworkGame {
       outcome: this.outcome,
       board: this.level.board,
       placedParts: [...this.level.fixtureParts, ...this.placedParts],
+      bodyPositions: this.bodyPositions(),
     };
   }
 
@@ -107,8 +180,13 @@ export class ClockworkGame {
     }
 
     stepWorld(this.world, FRAME_MS);
+    this.runElapsedMs += FRAME_MS;
+    this.updateOutcome();
     this.draw();
-    this.animationFrame = window.requestAnimationFrame(() => this.tick());
+
+    if (this.outcome === "running") {
+      this.animationFrame = window.requestAnimationFrame(() => this.tick());
+    }
   }
 
   private draw(): void {
@@ -126,6 +204,17 @@ export class ClockworkGame {
 
     for (const body of Matter.Composite.allBodies(world.engine.world)) {
       this.drawBody(body);
+    }
+
+    for (const part of this.placedParts) {
+      if (part.id === this.selectedPartId && this.outcome !== "running") {
+        const body = world.bodiesById.get(part.id);
+        if (body) {
+          this.context.strokeStyle = "#f4c542";
+          this.context.lineWidth = 5;
+          this.context.strokeRect(body.bounds.min.x - 5, body.bounds.min.y - 5, body.bounds.max.x - body.bounds.min.x + 10, body.bounds.max.y - body.bounds.min.y + 10);
+        }
+      }
     }
   }
 
@@ -156,9 +245,153 @@ export class ClockworkGame {
   private installTestSeam(): void {
     window.clockworkMischiefTest = {
       loadLevel: (levelId: string) => this.loadLevel(levelId),
+      placePart: (part: PlacedPartDefinition) => this.placePart(part),
       start: () => this.start(),
       reset: () => this.reset(),
       snapshot: () => this.snapshot(),
     };
+  }
+
+  private bodyPositions(): Record<string, Vec2> {
+    const positions: Record<string, Vec2> = {};
+
+    if (!this.world) {
+      return positions;
+    }
+
+    for (const [id, body] of this.world.bodiesById) {
+      positions[id] = { x: Math.round(body.position.x), y: Math.round(body.position.y) };
+    }
+
+    return positions;
+  }
+
+  private updateOutcome(): void {
+    if (!this.world) {
+      return;
+    }
+
+    const ball = this.world.bodiesById.get(this.level.ballPartId);
+    const goal = this.world.bodiesById.get(this.level.goalPartId);
+
+    if (!ball || !goal) {
+      return;
+    }
+
+    const ballInGoal =
+      ball.position.x >= goal.bounds.min.x &&
+      ball.position.x <= goal.bounds.max.x &&
+      ball.position.y >= goal.bounds.min.y - 24 &&
+      ball.position.y <= goal.bounds.max.y + 24;
+
+    if (ballInGoal) {
+      this.outcome = "success";
+      this.status.textContent = "Success!";
+      this.stopAnimation();
+      this.updateControls();
+      return;
+    }
+
+    const outOfBounds =
+      ball.position.x < -60 ||
+      ball.position.x > this.level.board.width + 60 ||
+      ball.position.y > this.level.board.height + 80;
+
+    if (outOfBounds || this.runElapsedMs >= this.level.timeoutMs) {
+      this.outcome = "soft-failure";
+      this.status.textContent = "Soft failure. Reset and revise the machine.";
+      this.stopAnimation();
+      this.updateControls();
+    }
+  }
+
+  private handleBoardPointer(event: PointerEvent): void {
+    if (this.outcome === "running" || !this.selectedKind) {
+      return;
+    }
+
+    const boardPoint = this.toBoardPoint(event);
+    const existing = this.placedParts.find((part) => this.pointNearPart(boardPoint, part));
+
+    if (existing) {
+      this.selectedPartId = existing.id;
+      this.status.textContent = `${existing.kind} selected.`;
+      this.draw();
+      return;
+    }
+
+    this.placePart({
+      id: `${this.selectedKind}-1`,
+      kind: this.selectedKind,
+      position: boardPoint,
+      angle: ANGLE_SNAP,
+    });
+  }
+
+  private toBoardPoint(event: PointerEvent): Vec2 {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * this.level.board.width,
+      y: ((event.clientY - rect.top) / rect.height) * this.level.board.height,
+    };
+  }
+
+  private pointNearPart(point: Vec2, part: PlacedPartDefinition): boolean {
+    return Math.abs(point.x - part.position.x) < 120 && Math.abs(point.y - part.position.y) < 60;
+  }
+
+  private rotateSelected(delta: number): void {
+    if (this.outcome === "running" || !this.selectedPartId) {
+      return;
+    }
+
+    const selected = this.placedParts.find((part) => part.id === this.selectedPartId);
+
+    if (!selected) {
+      return;
+    }
+
+    selected.angle += delta;
+    this.world = createPhysicsWorld(this.level, this.placedParts);
+    this.status.textContent = `${selected.kind} rotated.`;
+    this.draw();
+  }
+
+  private deleteSelected(): void {
+    if (this.outcome === "running" || !this.selectedPartId) {
+      return;
+    }
+
+    this.placedParts = this.placedParts.filter((part) => part.id !== this.selectedPartId);
+    this.selectedPartId = null;
+    this.world = createPhysicsWorld(this.level, this.placedParts);
+    this.status.textContent = "Part removed.";
+    this.updateControls();
+    this.draw();
+  }
+
+  private handleKey(event: KeyboardEvent): void {
+    if (event.key === " " || event.code === "Space") {
+      event.preventDefault();
+      if (this.outcome === "running") {
+        this.reset();
+      } else {
+        this.start();
+      }
+    } else if (event.key.toLowerCase() === "r") {
+      this.reset();
+    } else if (event.key === "[" || event.key === "{") {
+      this.rotateSelected(-ANGLE_SNAP);
+    } else if (event.key === "]" || event.key === "}") {
+      this.rotateSelected(ANGLE_SNAP);
+    } else if (event.key === "Delete" || event.key === "Backspace") {
+      this.deleteSelected();
+    }
+  }
+
+  private updateControls(): void {
+    const running = this.outcome === "running";
+    this.startButton.disabled = running;
+    this.resetButton.disabled = false;
   }
 }

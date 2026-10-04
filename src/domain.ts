@@ -49,4 +49,5 @@ export interface GameSnapshot {
   outcome: RunOutcome;
   board: BoardSize;
   placedParts: PlacedPartDefinition[];
+  bodyPositions: Record<string, Vec2>;
 }

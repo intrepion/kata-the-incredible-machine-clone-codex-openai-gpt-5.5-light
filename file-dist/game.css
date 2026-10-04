@@ -29,6 +29,10 @@ button {
   min-height: 44px;
   padding: 0 18px;
 }
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .app-shell {
   display: grid;
   gap: 12px;
@@ -42,6 +46,13 @@ button {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+}
+.actions,
+.toolbox {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .eyebrow,
 .objective,

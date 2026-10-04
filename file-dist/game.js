@@ -4947,13 +4947,13 @@
         {
           id: "ball-1",
           kind: "ball",
-          position: { x: 170, y: 110 },
+          position: { x: 300, y: 110 },
           angle: 0
         },
         {
           id: "basket-1",
           kind: "basket",
-          position: { x: 800, y: 460 },
+          position: { x: 660, y: 488 },
           angle: 0
         }
       ],
@@ -5014,7 +5014,7 @@
       });
     }
     if (part.kind === "basket") {
-      return import_matter_js.default.Bodies.rectangle(part.position.x, part.position.y, 90, 26, {
+      return import_matter_js.default.Bodies.rectangle(part.position.x, part.position.y, 140, 42, {
         isStatic: true,
         isSensor: true,
         label: part.id,
@@ -5022,10 +5022,10 @@
       });
     }
     if (part.kind === "ramp") {
-      return import_matter_js.default.Bodies.rectangle(part.position.x, part.position.y, 190, 20, {
+      return import_matter_js.default.Bodies.rectangle(part.position.x, part.position.y, 230, 20, {
         isStatic: true,
         angle: part.angle,
-        friction: 0.03,
+        friction: 0.01,
         label: part.id,
         render: { fillStyle: "#a97844" }
       });
@@ -5040,16 +5040,22 @@
 
   // src/ui/game.ts
   var FRAME_MS = 1e3 / 60;
+  var ANGLE_SNAP = Math.PI / 12;
   var ClockworkGame = class {
     root;
     canvas;
     context;
     status;
+    startButton;
+    resetButton;
     level = getLevel("level-1");
     placedParts = [];
     world = null;
     outcome = "idle";
     animationFrame = 0;
+    runElapsedMs = 0;
+    selectedKind = "ramp";
+    selectedPartId = null;
     constructor(root) {
       this.root = root;
       this.canvas = document.createElement("canvas");
@@ -5059,32 +5065,56 @@
       }
       this.context = context;
       this.status = document.createElement("p");
+      this.startButton = document.createElement("button");
+      this.resetButton = document.createElement("button");
     }
     mount() {
       this.root.className = "app-shell";
       this.root.innerHTML = "";
       const header = document.createElement("header");
       header.className = "topbar";
-      header.innerHTML = `
-      <div>
-        <p class="eyebrow">Clockwork Mischief</p>
-        <h1>${this.level.title}</h1>
-      </div>
-      <button type="button" data-action="start">Start</button>
+      const titleBlock = document.createElement("div");
+      titleBlock.innerHTML = `
+      <p class="eyebrow">Clockwork Mischief</p>
+      <h1>${this.level.title}</h1>
     `;
+      this.startButton.type = "button";
+      this.startButton.textContent = "Start";
+      this.resetButton.type = "button";
+      this.resetButton.textContent = "Reset";
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      actions.append(this.startButton, this.resetButton);
+      header.append(titleBlock, actions);
       const objective = document.createElement("p");
       objective.className = "objective";
       objective.textContent = this.level.objective;
+      const toolbox = document.createElement("div");
+      toolbox.className = "toolbox";
+      toolbox.innerHTML = `
+      <button type="button" data-tool="ramp">Ramp x1</button>
+      <button type="button" data-action="rotate-left">[ Rotate</button>
+      <button type="button" data-action="rotate-right">] Rotate</button>
+      <button type="button" data-action="delete">Delete</button>
+    `;
       this.status.className = "status";
       this.status.textContent = "Build mode ready.";
       this.canvas.width = this.level.board.width;
       this.canvas.height = this.level.board.height;
       this.canvas.className = "machine-board";
       this.canvas.dataset.testid = "machine-board";
-      this.root.append(header, objective, this.canvas, this.status);
-      header.querySelector("[data-action='start']")?.addEventListener("click", () => {
-        this.start();
+      this.root.append(header, objective, toolbox, this.canvas, this.status);
+      this.startButton.addEventListener("click", () => this.start());
+      this.resetButton.addEventListener("click", () => this.reset());
+      toolbox.querySelector("[data-tool='ramp']")?.addEventListener("click", () => {
+        this.selectedKind = "ramp";
+        this.status.textContent = "Ramp selected.";
       });
+      toolbox.querySelector("[data-action='rotate-left']")?.addEventListener("click", () => this.rotateSelected(-ANGLE_SNAP));
+      toolbox.querySelector("[data-action='rotate-right']")?.addEventListener("click", () => this.rotateSelected(ANGLE_SNAP));
+      toolbox.querySelector("[data-action='delete']")?.addEventListener("click", () => this.deleteSelected());
+      this.canvas.addEventListener("pointerdown", (event) => this.handleBoardPointer(event));
+      window.addEventListener("keydown", (event) => this.handleKey(event));
       this.loadLevel(this.level.id);
       this.installTestSeam();
     }
@@ -5093,23 +5123,58 @@
       this.level = getLevel(levelId);
       this.placedParts = [];
       this.outcome = "idle";
+      this.runElapsedMs = 0;
+      this.selectedPartId = null;
       this.world = createPhysicsWorld(this.level, this.placedParts);
+      this.updateControls();
       this.canvas.width = this.level.board.width;
       this.canvas.height = this.level.board.height;
       this.draw();
       this.status.textContent = "Build mode ready.";
       return this.snapshot();
     }
+    placePart(part) {
+      if (this.outcome === "running") {
+        return this.snapshot();
+      }
+      const existingIndex = this.placedParts.findIndex((candidate) => candidate.id === part.id);
+      if (existingIndex >= 0) {
+        this.placedParts[existingIndex] = part;
+      } else {
+        const currentCount = this.placedParts.filter((candidate) => candidate.kind === part.kind).length;
+        const allowedCount = this.level.toolbox[part.kind] ?? 0;
+        if (currentCount >= allowedCount) {
+          this.status.textContent = `No ${part.kind} parts left.`;
+          return this.snapshot();
+        }
+        this.placedParts.push(part);
+      }
+      this.selectedPartId = part.id;
+      this.world = createPhysicsWorld(this.level, this.placedParts);
+      this.status.textContent = `${part.kind} placed.`;
+      this.draw();
+      this.updateControls();
+      return this.snapshot();
+    }
     start() {
       this.stopAnimation();
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.outcome = "running";
+      this.runElapsedMs = 0;
       this.status.textContent = "Run mode.";
+      this.updateControls();
       this.tick();
       return this.snapshot();
     }
     reset() {
-      return this.loadLevel(this.level.id);
+      this.stopAnimation();
+      this.outcome = "idle";
+      this.runElapsedMs = 0;
+      this.world = createPhysicsWorld(this.level, this.placedParts);
+      this.status.textContent = "Build mode ready.";
+      this.updateControls();
+      this.draw();
+      return this.snapshot();
     }
     snapshot() {
       return {
@@ -5118,7 +5183,8 @@
         mode: this.outcome === "running" ? "run" : "build",
         outcome: this.outcome,
         board: this.level.board,
-        placedParts: [...this.level.fixtureParts, ...this.placedParts]
+        placedParts: [...this.level.fixtureParts, ...this.placedParts],
+        bodyPositions: this.bodyPositions()
       };
     }
     tick() {
@@ -5126,8 +5192,12 @@
         return;
       }
       stepWorld(this.world, FRAME_MS);
+      this.runElapsedMs += FRAME_MS;
+      this.updateOutcome();
       this.draw();
-      this.animationFrame = window.requestAnimationFrame(() => this.tick());
+      if (this.outcome === "running") {
+        this.animationFrame = window.requestAnimationFrame(() => this.tick());
+      }
     }
     draw() {
       const world = this.world;
@@ -5142,6 +5212,16 @@
       }
       for (const body of import_matter_js2.default.Composite.allBodies(world.engine.world)) {
         this.drawBody(body);
+      }
+      for (const part of this.placedParts) {
+        if (part.id === this.selectedPartId && this.outcome !== "running") {
+          const body = world.bodiesById.get(part.id);
+          if (body) {
+            this.context.strokeStyle = "#f4c542";
+            this.context.lineWidth = 5;
+            this.context.strokeRect(body.bounds.min.x - 5, body.bounds.min.y - 5, body.bounds.max.x - body.bounds.min.x + 10, body.bounds.max.y - body.bounds.min.y + 10);
+          }
+        }
       }
     }
     drawBody(body) {
@@ -5167,10 +5247,122 @@
     installTestSeam() {
       window.clockworkMischiefTest = {
         loadLevel: (levelId) => this.loadLevel(levelId),
+        placePart: (part) => this.placePart(part),
         start: () => this.start(),
         reset: () => this.reset(),
         snapshot: () => this.snapshot()
       };
+    }
+    bodyPositions() {
+      const positions = {};
+      if (!this.world) {
+        return positions;
+      }
+      for (const [id, body] of this.world.bodiesById) {
+        positions[id] = { x: Math.round(body.position.x), y: Math.round(body.position.y) };
+      }
+      return positions;
+    }
+    updateOutcome() {
+      if (!this.world) {
+        return;
+      }
+      const ball = this.world.bodiesById.get(this.level.ballPartId);
+      const goal = this.world.bodiesById.get(this.level.goalPartId);
+      if (!ball || !goal) {
+        return;
+      }
+      const ballInGoal = ball.position.x >= goal.bounds.min.x && ball.position.x <= goal.bounds.max.x && ball.position.y >= goal.bounds.min.y - 24 && ball.position.y <= goal.bounds.max.y + 24;
+      if (ballInGoal) {
+        this.outcome = "success";
+        this.status.textContent = "Success!";
+        this.stopAnimation();
+        this.updateControls();
+        return;
+      }
+      const outOfBounds = ball.position.x < -60 || ball.position.x > this.level.board.width + 60 || ball.position.y > this.level.board.height + 80;
+      if (outOfBounds || this.runElapsedMs >= this.level.timeoutMs) {
+        this.outcome = "soft-failure";
+        this.status.textContent = "Soft failure. Reset and revise the machine.";
+        this.stopAnimation();
+        this.updateControls();
+      }
+    }
+    handleBoardPointer(event) {
+      if (this.outcome === "running" || !this.selectedKind) {
+        return;
+      }
+      const boardPoint = this.toBoardPoint(event);
+      const existing = this.placedParts.find((part) => this.pointNearPart(boardPoint, part));
+      if (existing) {
+        this.selectedPartId = existing.id;
+        this.status.textContent = `${existing.kind} selected.`;
+        this.draw();
+        return;
+      }
+      this.placePart({
+        id: `${this.selectedKind}-1`,
+        kind: this.selectedKind,
+        position: boardPoint,
+        angle: ANGLE_SNAP
+      });
+    }
+    toBoardPoint(event) {
+      const rect = this.canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) / rect.width * this.level.board.width,
+        y: (event.clientY - rect.top) / rect.height * this.level.board.height
+      };
+    }
+    pointNearPart(point, part) {
+      return Math.abs(point.x - part.position.x) < 120 && Math.abs(point.y - part.position.y) < 60;
+    }
+    rotateSelected(delta) {
+      if (this.outcome === "running" || !this.selectedPartId) {
+        return;
+      }
+      const selected = this.placedParts.find((part) => part.id === this.selectedPartId);
+      if (!selected) {
+        return;
+      }
+      selected.angle += delta;
+      this.world = createPhysicsWorld(this.level, this.placedParts);
+      this.status.textContent = `${selected.kind} rotated.`;
+      this.draw();
+    }
+    deleteSelected() {
+      if (this.outcome === "running" || !this.selectedPartId) {
+        return;
+      }
+      this.placedParts = this.placedParts.filter((part) => part.id !== this.selectedPartId);
+      this.selectedPartId = null;
+      this.world = createPhysicsWorld(this.level, this.placedParts);
+      this.status.textContent = "Part removed.";
+      this.updateControls();
+      this.draw();
+    }
+    handleKey(event) {
+      if (event.key === " " || event.code === "Space") {
+        event.preventDefault();
+        if (this.outcome === "running") {
+          this.reset();
+        } else {
+          this.start();
+        }
+      } else if (event.key.toLowerCase() === "r") {
+        this.reset();
+      } else if (event.key === "[" || event.key === "{") {
+        this.rotateSelected(-ANGLE_SNAP);
+      } else if (event.key === "]" || event.key === "}") {
+        this.rotateSelected(ANGLE_SNAP);
+      } else if (event.key === "Delete" || event.key === "Backspace") {
+        this.deleteSelected();
+      }
+    }
+    updateControls() {
+      const running = this.outcome === "running";
+      this.startButton.disabled = running;
+      this.resetButton.disabled = false;
     }
   };
 

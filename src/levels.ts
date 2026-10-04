@@ -35,13 +35,13 @@ export const levels: LevelDefinition[] = [
       {
         id: "ball-1",
         kind: "ball",
-        position: { x: 170, y: 110 },
+        position: { x: 300, y: 110 },
         angle: 0,
       },
       {
         id: "basket-1",
         kind: "basket",
-        position: { x: 800, y: 460 },
+        position: { x: 660, y: 488 },
         angle: 0,
       },
     ],

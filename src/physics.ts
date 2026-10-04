@@ -56,7 +56,7 @@ function partBody(part: PlacedPartDefinition): Matter.Body {
   }
 
   if (part.kind === "basket") {
-    return Matter.Bodies.rectangle(part.position.x, part.position.y, 90, 26, {
+    return Matter.Bodies.rectangle(part.position.x, part.position.y, 140, 42, {
       isStatic: true,
       isSensor: true,
       label: part.id,
@@ -65,10 +65,10 @@ function partBody(part: PlacedPartDefinition): Matter.Body {
   }
 
   if (part.kind === "ramp") {
-    return Matter.Bodies.rectangle(part.position.x, part.position.y, 190, 20, {
+    return Matter.Bodies.rectangle(part.position.x, part.position.y, 230, 20, {
       isStatic: true,
       angle: part.angle,
-      friction: 0.03,
+      friction: 0.01,
       label: part.id,
       render: { fillStyle: "#a97844" },
     });
