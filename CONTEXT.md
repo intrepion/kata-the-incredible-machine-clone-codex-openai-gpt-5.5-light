@@ -1,6 +1,6 @@
-# The Incredible Machine Clone
+# Clockwork Mischief
 
-This context defines the language for a side-view contraption puzzle game inspired by The Incredible Machine. The project centers on constrained physical invention: placing parts, running a machine, observing cause and effect, and iterating until the objective is satisfied.
+This context defines the language for Clockwork Mischief, a side-view contraption puzzle game inspired by The Incredible Machine. The project centers on constrained physical invention: placing parts, running a machine, observing cause and effect, and iterating until the objective is satisfied.
 
 ## Language
 
@@ -15,6 +15,10 @@ _Avoid_: Edit mode, layout mode
 **Run Mode**:
 The state where placed parts become active and the machine plays out under physics until it succeeds, fails, or is reset.
 _Avoid_: Simulation mode, play mode
+
+**Frozen Editing**:
+The rule that player-placed parts cannot be moved, rotated, added, or deleted during run mode.
+_Avoid_: Lockout, paused editing
 
 **Part**:
 A player-placeable object that participates in the contraption through collision, motion, force, triggering, or goal detection.
@@ -60,6 +64,18 @@ _Avoid_: Combo, script, automation
 A run-mode outcome where the machine has clearly missed the objective, stalled, or gone out of bounds without erasing the player's build-mode solution.
 _Avoid_: Game over, loss, death
 
+**Timeout**:
+A soft failure condition where run mode has continued longer than the level's objective window.
+_Avoid_: Timer score, clock, time limit
+
+**Out of Bounds**:
+A soft failure condition where an essential moving body leaves the board.
+_Avoid_: Fall death, void, lost object
+
+**Settled Machine**:
+A soft failure condition where the moving bodies have come to rest without completing the objective.
+_Avoid_: Stalemate, idle state, dead machine
+
 **Reset**:
 Returning the board from run mode to the last build-mode arrangement.
 _Avoid_: Restart, undo simulation
@@ -75,6 +91,22 @@ _Avoid_: Stage, scene, sandbox
 **Campaign**:
 A sequence of levels that introduces parts and physical ideas through increasingly demanding objectives.
 _Avoid_: Story mode, progression track
+
+**Launch Campaign**:
+The initial five-level campaign that teaches ramps, redirection, bumper timing, fan force, conveyors, and trigger buttons.
+_Avoid_: Full campaign, tutorial pack, demo levels
+
+**Powered Part**:
+A part whose behavior is driven by run-mode energy or a trigger rather than only by gravity and collision.
+_Avoid_: Active item, gadget, machine part
+
+**Always-On Part**:
+A powered part that operates for the duration of run mode.
+_Avoid_: Passive powered part, automatic gadget
+
+**Triggered Part**:
+A powered part that activates in response to a button or other trigger event.
+_Avoid_: Wired part, switched gadget
 
 **Mechanical Workshop**:
 The playful visual identity for the game: readable physical parts, warm tabletop materials, and practical machine surfaces.
