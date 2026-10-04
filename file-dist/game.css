@@ -71,9 +71,19 @@ h1 {
   margin: 4px 0 0;
 }
 .objective,
-.status {
+.status,
+.hint {
   font-size: 1rem;
   font-weight: 700;
+}
+.hint {
+  background: #fff8e8;
+  border-left: 6px solid #d94f30;
+  margin: 0;
+  padding: 10px 12px;
+}
+.hint[hidden] {
+  display: none;
 }
 .machine-board {
   aspect-ratio: 16 / 9;
@@ -83,4 +93,21 @@ h1 {
   display: block;
   max-width: 100%;
   width: 100%;
+}
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 12px;
+  }
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  button {
+    flex: 1 1 120px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .machine-board {
+    box-shadow: none;
+  }
 }

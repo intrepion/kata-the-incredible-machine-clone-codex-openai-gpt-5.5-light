@@ -1,4 +1,5 @@
 import Matter from "matter-js";
+import { AudioSynth } from "../audio";
 import type { GameSnapshot, LevelDefinition, PartKind, PlacedPartDefinition, RunOutcome, Vec2 } from "../domain";
 import { getLevel } from "../levels";
 import { createPhysicsWorld, stepWorld, type PhysicsWorld } from "../physics";
@@ -21,6 +22,8 @@ export class ClockworkGame {
   private readonly resetButton: HTMLButtonElement;
   private readonly levelList: HTMLDivElement;
   private readonly toolbox: HTMLDivElement;
+  private readonly hint: HTMLParagraphElement;
+  private readonly audio = new AudioSynth();
   private level: LevelDefinition = getLevel("level-1");
   private placedParts: PlacedPartDefinition[] = [];
   private persisted: PersistedState = { solutions: {}, completedLevels: [] };
@@ -47,6 +50,7 @@ export class ClockworkGame {
     this.resetButton = document.createElement("button");
     this.levelList = document.createElement("div");
     this.toolbox = document.createElement("div");
+    this.hint = document.createElement("p");
   }
 
   mount(): void {
@@ -75,6 +79,8 @@ export class ClockworkGame {
     objective.dataset.role = "objective";
 
     this.toolbox.className = "toolbox";
+    this.hint.className = "hint";
+    this.hint.hidden = true;
 
     this.status.className = "status";
     this.status.textContent = "Build mode ready.";
@@ -85,7 +91,7 @@ export class ClockworkGame {
     this.canvas.dataset.testid = "machine-board";
 
     this.levelList.className = "level-list";
-    this.root.append(header, this.levelList, objective, this.toolbox, this.canvas, this.status);
+    this.root.append(header, this.levelList, objective, this.toolbox, this.hint, this.canvas, this.status);
     this.startButton.addEventListener("click", () => this.start());
     this.resetButton.addEventListener("click", () => this.reset());
     this.canvas.addEventListener("pointerdown", (event) => this.handleBoardPointer(event));
@@ -112,6 +118,8 @@ export class ClockworkGame {
     this.canvas.height = this.level.board.height;
     this.draw();
     this.status.textContent = "Build mode ready.";
+    this.hint.textContent = this.level.hint;
+    this.hint.hidden = true;
     this.renderLevelList();
     return this.snapshot();
   }
@@ -130,7 +138,8 @@ export class ClockworkGame {
       const allowedCount = this.level.toolbox[part.kind] ?? 0;
 
       if (currentCount >= allowedCount) {
-        this.status.textContent = `No ${part.kind} parts left.`;
+      this.status.textContent = `No ${part.kind} parts left.`;
+        this.audio.play("failure");
         return this.snapshot();
       }
 
@@ -141,6 +150,7 @@ export class ClockworkGame {
     this.saveSolution();
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.status.textContent = `${part.kind} placed.`;
+    this.audio.play("click");
     this.draw();
     this.updateControls();
     return this.snapshot();
@@ -153,6 +163,7 @@ export class ClockworkGame {
     this.runElapsedMs = 0;
     this.conveyorsActivated = false;
     this.status.textContent = "Run mode.";
+    this.audio.play("start");
     this.updateControls();
     this.tick();
     return this.snapshot();
@@ -164,6 +175,7 @@ export class ClockworkGame {
     this.runElapsedMs = 0;
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.status.textContent = "Build mode ready.";
+    this.audio.play("click");
     this.updateControls();
     this.draw();
     return this.snapshot();
@@ -296,6 +308,7 @@ export class ClockworkGame {
     if (ballInGoal) {
       this.outcome = "success";
       this.status.textContent = "Success!";
+      this.audio.play("success");
       this.markComplete();
       this.stopAnimation();
       this.updateControls();
@@ -310,6 +323,7 @@ export class ClockworkGame {
     if (outOfBounds || this.runElapsedMs >= this.level.timeoutMs) {
       this.outcome = "soft-failure";
       this.status.textContent = "Soft failure. Reset and revise the machine.";
+      this.audio.play("failure");
       this.stopAnimation();
       this.updateControls();
     }
@@ -375,6 +389,7 @@ export class ClockworkGame {
     if (existing) {
       this.selectedPartId = existing.id;
       this.status.textContent = `${existing.kind} selected.`;
+      this.audio.play("click");
       this.draw();
       return;
     }
@@ -413,6 +428,7 @@ export class ClockworkGame {
     selected.angle += delta;
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.status.textContent = `${selected.kind} rotated.`;
+    this.audio.play("click");
     this.draw();
   }
 
@@ -426,6 +442,7 @@ export class ClockworkGame {
     this.selectedPartId = null;
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.status.textContent = "Part removed.";
+    this.audio.play("click");
     this.updateControls();
     this.draw();
   }
@@ -446,6 +463,8 @@ export class ClockworkGame {
       this.rotateSelected(ANGLE_SNAP);
     } else if (event.key === "Delete" || event.key === "Backspace") {
       this.deleteSelected();
+    } else if (event.key.toLowerCase() === "h") {
+      this.revealHint();
     }
   }
 
@@ -465,6 +484,7 @@ export class ClockworkGame {
       button.addEventListener("click", () => {
         this.selectedKind = kind as PartKind;
         this.status.textContent = `${kind} selected.`;
+        this.audio.play("click");
       });
       this.toolbox.append(button);
     }
@@ -485,6 +505,12 @@ export class ClockworkGame {
     deleteButton.addEventListener("click", () => this.deleteSelected());
 
     this.toolbox.append(rotateLeft, rotateRight, deleteButton);
+  }
+
+  private revealHint(): void {
+    this.hint.hidden = false;
+    this.hint.textContent = this.level.hint;
+    this.audio.play("click");
   }
 
   private renderLevelList(): void {

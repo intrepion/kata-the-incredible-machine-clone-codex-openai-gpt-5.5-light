@@ -4911,6 +4911,40 @@
   // src/ui/game.ts
   var import_matter_js2 = __toESM(require_matter(), 1);
 
+  // src/audio.ts
+  var frequencies = {
+    click: 420,
+    start: 620,
+    collision: 260,
+    success: 880,
+    failure: 160
+  };
+  var AudioSynth = class {
+    context = null;
+    play(sound) {
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reducedMotion) {
+        return;
+      }
+      const context = this.getContext();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const now = context.currentTime;
+      oscillator.frequency.value = frequencies[sound];
+      oscillator.type = sound === "collision" ? "square" : "sine";
+      gain.gain.setValueAtTime(1e-4, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(1e-4, now + 0.16);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(now);
+      oscillator.stop(now + 0.18);
+    }
+    getContext() {
+      this.context ??= new AudioContext();
+      return this.context;
+    }
+  };
+
   // src/levels.ts
   var levels = [
     {
@@ -5230,6 +5264,8 @@
     resetButton;
     levelList;
     toolbox;
+    hint;
+    audio = new AudioSynth();
     level = getLevel("level-1");
     placedParts = [];
     persisted = { solutions: {}, completedLevels: [] };
@@ -5253,6 +5289,7 @@
       this.resetButton = document.createElement("button");
       this.levelList = document.createElement("div");
       this.toolbox = document.createElement("div");
+      this.hint = document.createElement("p");
     }
     mount() {
       this.root.className = "app-shell";
@@ -5277,6 +5314,8 @@
       objective.textContent = this.level.objective;
       objective.dataset.role = "objective";
       this.toolbox.className = "toolbox";
+      this.hint.className = "hint";
+      this.hint.hidden = true;
       this.status.className = "status";
       this.status.textContent = "Build mode ready.";
       this.canvas.width = this.level.board.width;
@@ -5284,7 +5323,7 @@
       this.canvas.className = "machine-board";
       this.canvas.dataset.testid = "machine-board";
       this.levelList.className = "level-list";
-      this.root.append(header, this.levelList, objective, this.toolbox, this.canvas, this.status);
+      this.root.append(header, this.levelList, objective, this.toolbox, this.hint, this.canvas, this.status);
       this.startButton.addEventListener("click", () => this.start());
       this.resetButton.addEventListener("click", () => this.reset());
       this.canvas.addEventListener("pointerdown", (event) => this.handleBoardPointer(event));
@@ -5309,6 +5348,8 @@
       this.canvas.height = this.level.board.height;
       this.draw();
       this.status.textContent = "Build mode ready.";
+      this.hint.textContent = this.level.hint;
+      this.hint.hidden = true;
       this.renderLevelList();
       return this.snapshot();
     }
@@ -5324,6 +5365,7 @@
         const allowedCount = this.level.toolbox[part.kind] ?? 0;
         if (currentCount >= allowedCount) {
           this.status.textContent = `No ${part.kind} parts left.`;
+          this.audio.play("failure");
           return this.snapshot();
         }
         this.placedParts.push(part);
@@ -5332,6 +5374,7 @@
       this.saveSolution();
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.status.textContent = `${part.kind} placed.`;
+      this.audio.play("click");
       this.draw();
       this.updateControls();
       return this.snapshot();
@@ -5343,6 +5386,7 @@
       this.runElapsedMs = 0;
       this.conveyorsActivated = false;
       this.status.textContent = "Run mode.";
+      this.audio.play("start");
       this.updateControls();
       this.tick();
       return this.snapshot();
@@ -5353,6 +5397,7 @@
       this.runElapsedMs = 0;
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.status.textContent = "Build mode ready.";
+      this.audio.play("click");
       this.updateControls();
       this.draw();
       return this.snapshot();
@@ -5459,6 +5504,7 @@
       if (ballInGoal) {
         this.outcome = "success";
         this.status.textContent = "Success!";
+        this.audio.play("success");
         this.markComplete();
         this.stopAnimation();
         this.updateControls();
@@ -5468,6 +5514,7 @@
       if (outOfBounds || this.runElapsedMs >= this.level.timeoutMs) {
         this.outcome = "soft-failure";
         this.status.textContent = "Soft failure. Reset and revise the machine.";
+        this.audio.play("failure");
         this.stopAnimation();
         this.updateControls();
       }
@@ -5512,6 +5559,7 @@
       if (existing) {
         this.selectedPartId = existing.id;
         this.status.textContent = `${existing.kind} selected.`;
+        this.audio.play("click");
         this.draw();
         return;
       }
@@ -5543,6 +5591,7 @@
       selected.angle += delta;
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.status.textContent = `${selected.kind} rotated.`;
+      this.audio.play("click");
       this.draw();
     }
     deleteSelected() {
@@ -5554,6 +5603,7 @@
       this.selectedPartId = null;
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.status.textContent = "Part removed.";
+      this.audio.play("click");
       this.updateControls();
       this.draw();
     }
@@ -5573,6 +5623,8 @@
         this.rotateSelected(ANGLE_SNAP);
       } else if (event.key === "Delete" || event.key === "Backspace") {
         this.deleteSelected();
+      } else if (event.key.toLowerCase() === "h") {
+        this.revealHint();
       }
     }
     updateControls() {
@@ -5589,6 +5641,7 @@
         button.addEventListener("click", () => {
           this.selectedKind = kind;
           this.status.textContent = `${kind} selected.`;
+          this.audio.play("click");
         });
         this.toolbox.append(button);
       }
@@ -5605,6 +5658,11 @@
       deleteButton.textContent = "Delete";
       deleteButton.addEventListener("click", () => this.deleteSelected());
       this.toolbox.append(rotateLeft, rotateRight, deleteButton);
+    }
+    revealHint() {
+      this.hint.hidden = false;
+      this.hint.textContent = this.level.hint;
+      this.audio.play("click");
     }
     renderLevelList() {
       this.levelList.innerHTML = "";

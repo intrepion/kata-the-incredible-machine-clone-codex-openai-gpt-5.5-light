@@ -79,3 +79,23 @@ test("buttoned conveyor can complete the final launch level", async ({ page }) =
 
   await expect.poll(async () => page.evaluate(() => window.clockworkMischiefTest.snapshot().outcome)).toBe("success");
 });
+
+test("keyboard shortcuts reveal hints and control selected parts", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByText("A simple ramp can turn falling into rolling.")).toBeHidden();
+  await page.keyboard.press("h");
+  await expect(page.getByText("A simple ramp can turn falling into rolling.")).toBeVisible();
+
+  await page.evaluate(() => {
+    window.clockworkMischiefTest.placePart({ id: "ramp-keyboard", kind: "ramp", position: { x: 300, y: 270 }, angle: 0 });
+  });
+  await page.keyboard.press("]");
+
+  const rotated = await page.evaluate(() => window.clockworkMischiefTest.snapshot().placedParts.find((part) => part.id === "ramp-keyboard")?.angle);
+  expect(rotated).toBeGreaterThan(0);
+
+  await page.keyboard.press("Backspace");
+  const removed = await page.evaluate(() => window.clockworkMischiefTest.snapshot().placedParts.some((part) => part.id === "ramp-keyboard"));
+  expect(removed).toBe(false);
+});
