@@ -52,3 +52,30 @@ test("solutions and completions persist per level", async ({ page }) => {
   expect(snapshot.completedLevels).toContain("level-1");
   expect(snapshot.placedParts.some((part) => part.id === "ramp-solution")).toBe(true);
 });
+
+test("fan force can complete the fan level", async ({ page }) => {
+  await page.goto("/");
+
+  await page.evaluate(() => {
+    window.clockworkMischiefTest.loadLevel("level-4");
+    window.clockworkMischiefTest.placePart({ id: "ramp-4", kind: "ramp", position: { x: 300, y: 270 }, angle: 0.35 });
+    window.clockworkMischiefTest.placePart({ id: "fan-4", kind: "fan", position: { x: 560, y: 455 }, angle: 0 });
+    window.clockworkMischiefTest.start();
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.clockworkMischiefTest.snapshot().outcome)).toBe("success");
+});
+
+test("buttoned conveyor can complete the final launch level", async ({ page }) => {
+  await page.goto("/");
+
+  await page.evaluate(() => {
+    window.clockworkMischiefTest.loadLevel("level-5");
+    window.clockworkMischiefTest.placePart({ id: "ramp-5", kind: "ramp", position: { x: 200, y: 270 }, angle: 0.35 });
+    window.clockworkMischiefTest.placePart({ id: "button-5", kind: "button", position: { x: 395, y: 486 }, angle: 0 });
+    window.clockworkMischiefTest.placePart({ id: "conveyor-5", kind: "conveyor", position: { x: 620, y: 486 }, angle: 0 });
+    window.clockworkMischiefTest.start();
+  });
+
+  await expect.poll(async () => page.evaluate(() => window.clockworkMischiefTest.snapshot().outcome)).toBe("success");
+});

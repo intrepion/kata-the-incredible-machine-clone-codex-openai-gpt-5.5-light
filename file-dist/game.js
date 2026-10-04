@@ -5175,6 +5175,40 @@
         render: { fillStyle: "#a97844" }
       });
     }
+    if (part.kind === "bumper") {
+      return import_matter_js.default.Bodies.circle(part.position.x, part.position.y, 30, {
+        isStatic: true,
+        restitution: 1.4,
+        label: part.id,
+        render: { fillStyle: "#d94f30" }
+      });
+    }
+    if (part.kind === "fan") {
+      return import_matter_js.default.Bodies.rectangle(part.position.x, part.position.y, 58, 72, {
+        isStatic: true,
+        isSensor: true,
+        angle: part.angle,
+        label: part.id,
+        render: { fillStyle: "#6da7c8" }
+      });
+    }
+    if (part.kind === "conveyor") {
+      return import_matter_js.default.Bodies.rectangle(part.position.x, part.position.y, 190, 22, {
+        isStatic: true,
+        angle: part.angle,
+        friction: 0.01,
+        label: part.id,
+        render: { fillStyle: "#5b6575" }
+      });
+    }
+    if (part.kind === "button") {
+      return import_matter_js.default.Bodies.rectangle(part.position.x, part.position.y, 70, 16, {
+        isStatic: true,
+        isSensor: true,
+        label: part.id,
+        render: { fillStyle: "#f4c542" }
+      });
+    }
     return import_matter_js.default.Bodies.rectangle(part.position.x, part.position.y, 80, 34, {
       isStatic: true,
       angle: part.angle,
@@ -5195,6 +5229,7 @@
     startButton;
     resetButton;
     levelList;
+    toolbox;
     level = getLevel("level-1");
     placedParts = [];
     persisted = { solutions: {}, completedLevels: [] };
@@ -5204,6 +5239,7 @@
     runElapsedMs = 0;
     selectedKind = "ramp";
     selectedPartId = null;
+    conveyorsActivated = false;
     constructor(root) {
       this.root = root;
       this.canvas = document.createElement("canvas");
@@ -5216,6 +5252,7 @@
       this.startButton = document.createElement("button");
       this.resetButton = document.createElement("button");
       this.levelList = document.createElement("div");
+      this.toolbox = document.createElement("div");
     }
     mount() {
       this.root.className = "app-shell";
@@ -5239,14 +5276,7 @@
       objective.className = "objective";
       objective.textContent = this.level.objective;
       objective.dataset.role = "objective";
-      const toolbox = document.createElement("div");
-      toolbox.className = "toolbox";
-      toolbox.innerHTML = `
-      <button type="button" data-tool="ramp">Ramp x1</button>
-      <button type="button" data-action="rotate-left">[ Rotate</button>
-      <button type="button" data-action="rotate-right">] Rotate</button>
-      <button type="button" data-action="delete">Delete</button>
-    `;
+      this.toolbox.className = "toolbox";
       this.status.className = "status";
       this.status.textContent = "Build mode ready.";
       this.canvas.width = this.level.board.width;
@@ -5254,16 +5284,9 @@
       this.canvas.className = "machine-board";
       this.canvas.dataset.testid = "machine-board";
       this.levelList.className = "level-list";
-      this.root.append(header, this.levelList, objective, toolbox, this.canvas, this.status);
+      this.root.append(header, this.levelList, objective, this.toolbox, this.canvas, this.status);
       this.startButton.addEventListener("click", () => this.start());
       this.resetButton.addEventListener("click", () => this.reset());
-      toolbox.querySelector("[data-tool='ramp']")?.addEventListener("click", () => {
-        this.selectedKind = "ramp";
-        this.status.textContent = "Ramp selected.";
-      });
-      toolbox.querySelector("[data-action='rotate-left']")?.addEventListener("click", () => this.rotateSelected(-ANGLE_SNAP));
-      toolbox.querySelector("[data-action='rotate-right']")?.addEventListener("click", () => this.rotateSelected(ANGLE_SNAP));
-      toolbox.querySelector("[data-action='delete']")?.addEventListener("click", () => this.deleteSelected());
       this.canvas.addEventListener("pointerdown", (event) => this.handleBoardPointer(event));
       window.addEventListener("keydown", (event) => this.handleKey(event));
       this.persisted = this.loadPersisted();
@@ -5277,9 +5300,11 @@
       this.placedParts = [...this.persisted.solutions[levelId] ?? []];
       this.outcome = "idle";
       this.runElapsedMs = 0;
+      this.conveyorsActivated = false;
       this.selectedPartId = null;
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.updateControls();
+      this.renderToolbox();
       this.canvas.width = this.level.board.width;
       this.canvas.height = this.level.board.height;
       this.draw();
@@ -5316,6 +5341,7 @@
       this.world = createPhysicsWorld(this.level, this.placedParts);
       this.outcome = "running";
       this.runElapsedMs = 0;
+      this.conveyorsActivated = false;
       this.status.textContent = "Run mode.";
       this.updateControls();
       this.tick();
@@ -5348,6 +5374,7 @@
         return;
       }
       stepWorld(this.world, FRAME_MS);
+      this.applyPoweredParts();
       this.runElapsedMs += FRAME_MS;
       this.updateOutcome();
       this.draw();
@@ -5445,6 +5472,37 @@
         this.updateControls();
       }
     }
+    applyPoweredParts() {
+      if (!this.world) {
+        return;
+      }
+      const ball = this.world.bodiesById.get(this.level.ballPartId);
+      if (!ball) {
+        return;
+      }
+      for (const part of this.placedParts) {
+        const body = this.world.bodiesById.get(part.id);
+        if (!body) {
+          continue;
+        }
+        if (part.kind === "fan") {
+          const withinFanStream = ball.position.x > body.position.x - 30 && ball.position.x < body.position.x + 260 && Math.abs(ball.position.y - body.position.y) < 95;
+          if (withinFanStream) {
+            import_matter_js2.default.Body.applyForce(ball, ball.position, { x: 8e-3, y: -35e-5 });
+          }
+        } else if (part.kind === "button") {
+          const touchesButton = Math.abs(ball.position.x - body.position.x) < 60 && Math.abs(ball.position.y - body.position.y) < 42;
+          if (touchesButton) {
+            this.conveyorsActivated = true;
+          }
+        } else if (part.kind === "conveyor" && this.conveyorsActivated) {
+          const ridesConveyor = ball.position.x > body.bounds.min.x - 20 && ball.position.x < body.bounds.max.x + 20 && ball.position.y > body.bounds.min.y - 60 && ball.position.y < body.bounds.max.y + 50;
+          if (ridesConveyor) {
+            import_matter_js2.default.Body.setVelocity(ball, { x: Math.max(ball.velocity.x, 6), y: ball.velocity.y });
+          }
+        }
+      }
+    }
     handleBoardPointer(event) {
       if (this.outcome === "running" || !this.selectedKind) {
         return;
@@ -5521,6 +5579,32 @@
       const running = this.outcome === "running";
       this.startButton.disabled = running;
       this.resetButton.disabled = false;
+    }
+    renderToolbox() {
+      this.toolbox.innerHTML = "";
+      for (const [kind, count] of Object.entries(this.level.toolbox)) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `${kind} x${count}`;
+        button.addEventListener("click", () => {
+          this.selectedKind = kind;
+          this.status.textContent = `${kind} selected.`;
+        });
+        this.toolbox.append(button);
+      }
+      const rotateLeft = document.createElement("button");
+      rotateLeft.type = "button";
+      rotateLeft.textContent = "[ Rotate";
+      rotateLeft.addEventListener("click", () => this.rotateSelected(-ANGLE_SNAP));
+      const rotateRight = document.createElement("button");
+      rotateRight.type = "button";
+      rotateRight.textContent = "] Rotate";
+      rotateRight.addEventListener("click", () => this.rotateSelected(ANGLE_SNAP));
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", () => this.deleteSelected());
+      this.toolbox.append(rotateLeft, rotateRight, deleteButton);
     }
     renderLevelList() {
       this.levelList.innerHTML = "";

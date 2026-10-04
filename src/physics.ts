@@ -74,6 +74,44 @@ function partBody(part: PlacedPartDefinition): Matter.Body {
     });
   }
 
+  if (part.kind === "bumper") {
+    return Matter.Bodies.circle(part.position.x, part.position.y, 30, {
+      isStatic: true,
+      restitution: 1.4,
+      label: part.id,
+      render: { fillStyle: "#d94f30" },
+    });
+  }
+
+  if (part.kind === "fan") {
+    return Matter.Bodies.rectangle(part.position.x, part.position.y, 58, 72, {
+      isStatic: true,
+      isSensor: true,
+      angle: part.angle,
+      label: part.id,
+      render: { fillStyle: "#6da7c8" },
+    });
+  }
+
+  if (part.kind === "conveyor") {
+    return Matter.Bodies.rectangle(part.position.x, part.position.y, 190, 22, {
+      isStatic: true,
+      angle: part.angle,
+      friction: 0.01,
+      label: part.id,
+      render: { fillStyle: "#5b6575" },
+    });
+  }
+
+  if (part.kind === "button") {
+    return Matter.Bodies.rectangle(part.position.x, part.position.y, 70, 16, {
+      isStatic: true,
+      isSensor: true,
+      label: part.id,
+      render: { fillStyle: "#f4c542" },
+    });
+  }
+
   return Matter.Bodies.rectangle(part.position.x, part.position.y, 80, 34, {
     isStatic: true,
     angle: part.angle,

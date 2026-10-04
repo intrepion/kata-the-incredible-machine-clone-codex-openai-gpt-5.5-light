@@ -20,6 +20,7 @@ export class ClockworkGame {
   private readonly startButton: HTMLButtonElement;
   private readonly resetButton: HTMLButtonElement;
   private readonly levelList: HTMLDivElement;
+  private readonly toolbox: HTMLDivElement;
   private level: LevelDefinition = getLevel("level-1");
   private placedParts: PlacedPartDefinition[] = [];
   private persisted: PersistedState = { solutions: {}, completedLevels: [] };
@@ -29,6 +30,7 @@ export class ClockworkGame {
   private runElapsedMs = 0;
   private selectedKind: PartKind | null = "ramp";
   private selectedPartId: string | null = null;
+  private conveyorsActivated = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -44,6 +46,7 @@ export class ClockworkGame {
     this.startButton = document.createElement("button");
     this.resetButton = document.createElement("button");
     this.levelList = document.createElement("div");
+    this.toolbox = document.createElement("div");
   }
 
   mount(): void {
@@ -71,14 +74,7 @@ export class ClockworkGame {
     objective.textContent = this.level.objective;
     objective.dataset.role = "objective";
 
-    const toolbox = document.createElement("div");
-    toolbox.className = "toolbox";
-    toolbox.innerHTML = `
-      <button type="button" data-tool="ramp">Ramp x1</button>
-      <button type="button" data-action="rotate-left">[ Rotate</button>
-      <button type="button" data-action="rotate-right">] Rotate</button>
-      <button type="button" data-action="delete">Delete</button>
-    `;
+    this.toolbox.className = "toolbox";
 
     this.status.className = "status";
     this.status.textContent = "Build mode ready.";
@@ -89,16 +85,9 @@ export class ClockworkGame {
     this.canvas.dataset.testid = "machine-board";
 
     this.levelList.className = "level-list";
-    this.root.append(header, this.levelList, objective, toolbox, this.canvas, this.status);
+    this.root.append(header, this.levelList, objective, this.toolbox, this.canvas, this.status);
     this.startButton.addEventListener("click", () => this.start());
     this.resetButton.addEventListener("click", () => this.reset());
-    toolbox.querySelector<HTMLButtonElement>("[data-tool='ramp']")?.addEventListener("click", () => {
-      this.selectedKind = "ramp";
-      this.status.textContent = "Ramp selected.";
-    });
-    toolbox.querySelector<HTMLButtonElement>("[data-action='rotate-left']")?.addEventListener("click", () => this.rotateSelected(-ANGLE_SNAP));
-    toolbox.querySelector<HTMLButtonElement>("[data-action='rotate-right']")?.addEventListener("click", () => this.rotateSelected(ANGLE_SNAP));
-    toolbox.querySelector<HTMLButtonElement>("[data-action='delete']")?.addEventListener("click", () => this.deleteSelected());
     this.canvas.addEventListener("pointerdown", (event) => this.handleBoardPointer(event));
     window.addEventListener("keydown", (event) => this.handleKey(event));
 
@@ -114,9 +103,11 @@ export class ClockworkGame {
     this.placedParts = [...(this.persisted.solutions[levelId] ?? [])];
     this.outcome = "idle";
     this.runElapsedMs = 0;
+    this.conveyorsActivated = false;
     this.selectedPartId = null;
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.updateControls();
+    this.renderToolbox();
     this.canvas.width = this.level.board.width;
     this.canvas.height = this.level.board.height;
     this.draw();
@@ -160,6 +151,7 @@ export class ClockworkGame {
     this.world = createPhysicsWorld(this.level, this.placedParts);
     this.outcome = "running";
     this.runElapsedMs = 0;
+    this.conveyorsActivated = false;
     this.status.textContent = "Run mode.";
     this.updateControls();
     this.tick();
@@ -196,6 +188,7 @@ export class ClockworkGame {
     }
 
     stepWorld(this.world, FRAME_MS);
+    this.applyPoweredParts();
     this.runElapsedMs += FRAME_MS;
     this.updateOutcome();
     this.draw();
@@ -322,6 +315,55 @@ export class ClockworkGame {
     }
   }
 
+  private applyPoweredParts(): void {
+    if (!this.world) {
+      return;
+    }
+
+    const ball = this.world.bodiesById.get(this.level.ballPartId);
+
+    if (!ball) {
+      return;
+    }
+
+    for (const part of this.placedParts) {
+      const body = this.world.bodiesById.get(part.id);
+
+      if (!body) {
+        continue;
+      }
+
+      if (part.kind === "fan") {
+        const withinFanStream =
+          ball.position.x > body.position.x - 30 &&
+          ball.position.x < body.position.x + 260 &&
+          Math.abs(ball.position.y - body.position.y) < 95;
+
+        if (withinFanStream) {
+          Matter.Body.applyForce(ball, ball.position, { x: 0.008, y: -0.00035 });
+        }
+      } else if (part.kind === "button") {
+        const touchesButton =
+          Math.abs(ball.position.x - body.position.x) < 60 &&
+          Math.abs(ball.position.y - body.position.y) < 42;
+
+        if (touchesButton) {
+          this.conveyorsActivated = true;
+        }
+      } else if (part.kind === "conveyor" && this.conveyorsActivated) {
+        const ridesConveyor =
+          ball.position.x > body.bounds.min.x - 20 &&
+          ball.position.x < body.bounds.max.x + 20 &&
+          ball.position.y > body.bounds.min.y - 60 &&
+          ball.position.y < body.bounds.max.y + 50;
+
+        if (ridesConveyor) {
+          Matter.Body.setVelocity(ball, { x: Math.max(ball.velocity.x, 6), y: ball.velocity.y });
+        }
+      }
+    }
+  }
+
   private handleBoardPointer(event: PointerEvent): void {
     if (this.outcome === "running" || !this.selectedKind) {
       return;
@@ -411,6 +453,38 @@ export class ClockworkGame {
     const running = this.outcome === "running";
     this.startButton.disabled = running;
     this.resetButton.disabled = false;
+  }
+
+  private renderToolbox(): void {
+    this.toolbox.innerHTML = "";
+
+    for (const [kind, count] of Object.entries(this.level.toolbox)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${kind} x${count}`;
+      button.addEventListener("click", () => {
+        this.selectedKind = kind as PartKind;
+        this.status.textContent = `${kind} selected.`;
+      });
+      this.toolbox.append(button);
+    }
+
+    const rotateLeft = document.createElement("button");
+    rotateLeft.type = "button";
+    rotateLeft.textContent = "[ Rotate";
+    rotateLeft.addEventListener("click", () => this.rotateSelected(-ANGLE_SNAP));
+
+    const rotateRight = document.createElement("button");
+    rotateRight.type = "button";
+    rotateRight.textContent = "] Rotate";
+    rotateRight.addEventListener("click", () => this.rotateSelected(ANGLE_SNAP));
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => this.deleteSelected());
+
+    this.toolbox.append(rotateLeft, rotateRight, deleteButton);
   }
 
   private renderLevelList(): void {
