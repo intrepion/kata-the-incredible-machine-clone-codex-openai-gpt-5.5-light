@@ -1,6 +1,47 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "gameId": "kata-the-incredible-machine-clone-codex-openai-gpt-5.5-light",
   "playUrl": "https://intrepion.github.io/kata-the-incredible-machine-clone-codex-openai-gpt-5.5-light/",
-  "screenshots": []
+  "screenshots": [
+    {
+      "path": "arcade/screenshots/ci-20261102-01.jpg",
+      "sha256": "0404e90f0bd35241ca8a4a5e5dbf26d624d1953ba9d85d6f92db76d2fed4fe93",
+      "alt": "Clockwork Mischief gameplay, view 1",
+      "provenance": {
+        "kind": "ci_gameplay_capture",
+        "sourcePath": "arcade/capture-evidence/ci-20261102-01.png",
+        "sourceSha256": "83cbd5aa3c70ec6d1a3729ea73306b8de4ce125e597af5984b1a1c975cc21a9f",
+        "captureCommit": "2973f5ebdfdebf204be5991cace6ebbff668a563",
+        "workflowRunId": "41400062901",
+        "inputHashes": {
+          "index.html": "0e6c500579e9166ff8c4b5b976297f2b2e0970fddd1e0b4fe5573ad6f96d1ff5",
+          "game.css": "478ba0f4e90cdbf803a01d444d53e36de96868af032f5d024c36e59f117f26d6",
+          "game.js": "05085baf68591dca759d65717f72057371f76d00296239a72f180c1be411387a"
+        },
+        "publishedFilesVerifiedAt": "2026-11-02T19:01:20Z",
+        "captureRecordPath": "arcade/capture-evidence/ci-20261102-record.json",
+        "captureRecordSha256": "7ee85b22695eeeacc7054a023492ac48d4aff8636f929e40d6e3b229ce8dbf40"
+      }
+    },
+    {
+      "path": "arcade/screenshots/ci-20261102-02.jpg",
+      "sha256": "4a4772c1b818916ad4e14005699f92af3b3f52a75088b093356d221a0511070b",
+      "alt": "Clockwork Mischief gameplay, view 2",
+      "provenance": {
+        "kind": "ci_gameplay_capture",
+        "sourcePath": "arcade/capture-evidence/ci-20261102-02.png",
+        "sourceSha256": "586c3381b48d78fa2191ef13db2b6f222f18204b88e09228e8d1e159497b123e",
+        "captureCommit": "2973f5ebdfdebf204be5991cace6ebbff668a563",
+        "workflowRunId": "41400062901",
+        "inputHashes": {
+          "index.html": "0e6c500579e9166ff8c4b5b976297f2b2e0970fddd1e0b4fe5573ad6f96d1ff5",
+          "game.css": "478ba0f4e90cdbf803a01d444d53e36de96868af032f5d024c36e59f117f26d6",
+          "game.js": "05085baf68591dca759d65717f72057371f76d00296239a72f180c1be411387a"
+        },
+        "publishedFilesVerifiedAt": "2026-11-02T19:01:20Z",
+        "captureRecordPath": "arcade/capture-evidence/ci-20261102-record.json",
+        "captureRecordSha256": "7ee85b22695eeeacc7054a023492ac48d4aff8636f929e40d6e3b229ce8dbf40"
+      }
+    }
+  ]
 }

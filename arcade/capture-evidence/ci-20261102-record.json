@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "workflowCommit": "80c6c36e26640893cd88fc2ede20e437b11ad15f",
+  "sourceCommit": "2973f5ebdfdebf204be5991cace6ebbff668a563",
+  "runId": "41400062901",
+  "url": "http://127.0.0.1:4212/",
+  "inputs": {
+    "index.html": "0e6c500579e9166ff8c4b5b976297f2b2e0970fddd1e0b4fe5573ad6f96d1ff5",
+    "game.css": "478ba0f4e90cdbf803a01d444d53e36de96868af032f5d024c36e59f117f26d6",
+    "game.js": "05085baf68591dca759d65717f72057371f76d00296239a72f180c1be411387a"
+  },
+  "browser": "153.0.8010.12",
+  "viewport": {
+    "width": 1280,
+    "height": 1000
+  },
+  "screenshots": [
+    "clockwork-01.png",
+    "clockwork-02.png"
+  ]
+}
